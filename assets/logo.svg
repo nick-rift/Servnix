@@ -1,0 +1,38 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="200" height="200" fill="#ffffff"/>
+  
+  <!-- Shield with rounded corners -->
+  <path d="M 100 20 L 160 50 L 160 110 C 160 150 100 180 100 180 C 100 180 40 150 40 110 L 40 50 Z" 
+        fill="#1e3a8a" stroke="#0f172a" stroke-width="2"/>
+  
+  <!-- Shield inner glow -->
+  <path d="M 100 20 L 160 50 L 160 110 C 160 150 100 180 100 180 C 100 180 40 150 40 110 L 40 50 Z" 
+        fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.5"/>
+  
+  <!-- Lock symbol inside shield -->
+  <g transform="translate(100, 95)">
+    <!-- Lock body -->
+    <rect x="-20" y="-5" width="40" height="35" rx="4" fill="#10b981" stroke="#059669" stroke-width="1.5"/>
+    
+    <!-- Lock shackle (top arc) -->
+    <path d="M -15 -5 Q -15 -30 0 -30 Q 15 -30 15 -5" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Keyhole -->
+    <circle cx="0" cy="5" r="3" fill="#ffffff"/>
+    <rect x="-2" y="8" width="4" height="8" fill="#ffffff"/>
+  </g>
+  
+  <!-- Top accent dots (representing security scanning) -->
+  <circle cx="50" cy="40" r="3" fill="#06b6d4" opacity="0.8"/>
+  <circle cx="70" cy="35" r="2.5" fill="#06b6d4" opacity="0.6"/>
+  <circle cx="130" cy="40" r="3" fill="#06b6d4" opacity="0.8"/>
+  <circle cx="150" cy="35" r="2.5" fill="#06b6d4" opacity="0.6"/>
+  
+  <!-- Bottom accent line (representing updates) -->
+  <line x1="40" y1="165" x2="160" y2="165" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Text: SERVNIX -->
+  <text x="100" y="195" font-family="Arial, sans-serif" font-size="14" font-weight="bold" 
+        fill="#1e3a8a" text-anchor="middle" letter-spacing="2">SERVNIX</text>
+</svg>
