@@ -417,6 +417,15 @@ Du darfst es nutzen, modifizieren und vertreiben - mit oder ohne Änderungen.
 
 ---
 
+## 📱 Follow Us
+
+Folge uns auf den sozialen Medien für Updates & News:
+
+- **TikTok**: [@nick.rift](https://www.tiktok.com/@nick.rift) 🎬
+- **Instagram**: [@nick.rift](https://www.instagram.com/nick.rift) 📸
+
+---
+
 ## 🚀 Getting Help
 
 **Probleme?** Schau zuerst in die [Troubleshooting Guide](docs/TROUBLESHOOTING.md).
