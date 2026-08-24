@@ -131,11 +131,6 @@ Siehe [CONTRIBUTING.md](docs/CONTRIBUTING.md) für Details.
 | CI/CD | ✅ All tests pass | Bei jedem Push |
 | Server Health | ✅ Online | Kontinuierlich |
 
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/nick-rift/Servnix/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/nick-rift/Servnix/discussions)
-- **Email**: [security@servnix.dev](mailto:security@servnix.dev)
 
 ## 📄 Lizenz
 
