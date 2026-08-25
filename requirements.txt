@@ -1,0 +1,52 @@
+# Security Scanning
+aiohttp==3.8.5
+auditwheel==6.0.0
+bandit==1.7.5
+black==23.9.1
+cryptography==41.0.3
+
+# Vulnerability Assessment
+django-security-check==1.13.0
+django==4.2.6
+flake8==6.1.0
+mypy==1.5.1
+pip-audit==2.6.1
+pylint==2.17.5
+safety==2.3.5
+
+# Compliance & Standards
+cis-benchmark==1.0.0
+compliance-checker==1.2.0
+dockerscan==1.0.0
+
+# Reporting & Analytics
+jinja2==3.1.2
+matplotlib==3.7.3
+numpy==1.24.3
+pandas==2.0.3
+psycopg2-binary==2.9.7
+python-dateutil==2.8.2
+
+# Logging & Monitoring
+sentry-sdk==1.32.0
+prometheus-client==0.17.1
+python-json-logger==2.0.7
+
+# System Administration
+fabric==3.2.2
+paramiko==3.3.1
+pycraft==1.16.0
+
+# API & Web
+flask==2.3.3
+requests==2.31.0
+
+# Database
+sqlalchemy==2.0.21
+
+# Utilities
+pydantic==2.3.0
+python-dotenv==1.0.0
+pyyaml==6.0.1
+setuptools==68.1.2
+wheel==0.41.2

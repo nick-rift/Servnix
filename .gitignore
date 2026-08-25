@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+.venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pip-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+
+# Build & Distribution
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Reports & Artifacts
+reports/
+*.pdf
+*.xlsx
+*.csv
+audit-reports/
+security-reports/
+
+# Cache
+.cache/
+.eslintcache
+
+# Temp
+tmp/
+temp/
+*.tmp
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.pfx
+secrets/
