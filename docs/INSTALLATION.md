@@ -74,9 +74,23 @@ das ist aber ein bewusstes Sicherheits-Downgrade und nur für interne Testumgebu
 npm start
 ```
 
-Dashboard läuft unter `http://<server-ip>:3000`. Für produktiven Betrieb empfiehlt sich ein
-Reverse-Proxy (z. B. nginx/Caddy) mit echtem TLS-Zertifikat davor, statt den Node-Prozess
-direkt öffentlich zu exponieren.
+Der Server bindet standardmäßig nur an `127.0.0.1` (siehe `HOST` in `.env`) – das Dashboard ist
+also nie direkt über die öffentliche Server-IP erreichbar. Zugriff von deinem eigenen Rechner
+läuft über einen SSH-Tunnel:
+
+```bash
+# Auf deinem lokalen PC ausführen (Terminal offen lassen):
+ssh -L 3000:localhost:3000 <user>@<server-ip>
+
+# oder dauerhaft im Hintergrund:
+ssh -f -N -L 3000:localhost:3000 <user>@<server-ip>
+```
+
+Danach im Browser auf deinem PC: `http://localhost:3000`.
+
+Nur wenn du bewusst einen eigenen, abgesicherten Reverse-Proxy (mit TLS + eigener Auth) davor
+betreiben willst, setze `HOST=0.0.0.0` in `.env` und exponiere ausschließlich den Reverse-Proxy,
+nie den Node-Prozess direkt.
 
 ### Ersten Scan ausführen
 

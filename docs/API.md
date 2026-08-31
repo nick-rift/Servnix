@@ -1,6 +1,7 @@
 # API-Referenz
 
-Basis-URL: `http://<server>:3000`
+Basis-URL: `http://127.0.0.1:3000` (Server bindet standardmäßig nur an localhost, siehe
+[INSTALLATION.md](INSTALLATION.md) für den SSH-Tunnel-Zugriff von einem entfernten PC aus).
 Alle Endpunkte sind per HTTP Basic Auth geschützt, sobald `DASHBOARD_PASSWORD_HASH` in `.env` gesetzt ist.
 
 ## Health
