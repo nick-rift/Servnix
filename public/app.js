@@ -194,8 +194,95 @@ function bindFirewallActions() {
   });
 }
 
+async function loadBlocklist() {
+  const body = $('#blocklistBody');
+  try {
+    const list = await api('/api/blocklist');
+    const entries = Object.entries(list);
+    if (entries.length === 0) {
+      body.innerHTML = '<tr><td colspan="5" class="status-ok">Keine gesperrten IPs 🎉</td></tr>';
+      return;
+    }
+    body.innerHTML = entries
+      .map(([ip, info]) => `
+        <tr>
+          <td>${ip}</td>
+          <td>${info.reason || '–'}</td>
+          <td>${info.source || '–'}</td>
+          <td>${icon(info.nftSynced)} nftables${info.opnsenseSynced ? ' + OPNsense' : ''}</td>
+          <td><button data-unblock-ip="${ip}" class="danger small">Entsperren</button></td>
+        </tr>`)
+      .join('');
+    body.querySelectorAll('[data-unblock-ip]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const ip = btn.dataset.unblockIp;
+        if (!confirm(`IP ${ip} wirklich entsperren?`)) return;
+        try {
+          await api(`/api/blocklist/${encodeURIComponent(ip)}`, { method: 'DELETE' });
+          loadBlocklist();
+          loadSecurityEvents();
+        } catch (err) {
+          alert('Entsperren fehlgeschlagen: ' + err.message);
+        }
+      });
+    });
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="5" class="muted">Fehler: ${err.message}</td></tr>`;
+  }
+}
+
+async function loadSecurityEvents() {
+  const list = $('#securityEventsList');
+  try {
+    const events = await api('/api/security-events?limit=50');
+    if (events.length === 0) {
+      list.innerHTML = '<li class="muted">Noch keine Ereignisse.</li>';
+      return;
+    }
+    list.innerHTML = events
+      .map((e) => {
+        const time = new Date(e.timestamp).toLocaleString('de-DE');
+        const typeLabel = { block: '🚫 Gesperrt', unblock: '✅ Entsperrt', 'usb-detected': '🔌 USB-Geraet' }[e.type] || e.type;
+        const detail = e.ip ? `${e.ip} - ${e.reason || ''}` : (e.detail || '');
+        return `<li><span class="muted">${time}</span> ${typeLabel}: ${detail}</li>`;
+      })
+      .join('');
+  } catch (err) {
+    list.innerHTML = `<li class="muted">Fehler: ${err.message}</li>`;
+  }
+}
+
+function bindBlockForm() {
+  $('#blockIpBtn').addEventListener('click', async () => {
+    const input = $('#blockIpInput');
+    const ip = input.value.trim();
+    if (!ip) return;
+    try {
+      const res = await api('/api/blocklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, reason: 'Manuell ueber Dashboard gesperrt' }),
+      });
+      if (!res.ok) {
+        alert('Sperren fehlgeschlagen: ' + (res.error || 'unbekannter Fehler'));
+        return;
+      }
+      input.value = '';
+      loadBlocklist();
+      loadSecurityEvents();
+    } catch (err) {
+      alert('Sperren fehlgeschlagen: ' + err.message);
+    }
+  });
+}
+
 $('#scanBtn').addEventListener('click', triggerScan);
 bindFirewallActions();
+bindBlockForm();
 loadLatest();
 loadOpnsense();
+loadBlocklist();
+loadSecurityEvents();
 setInterval(loadLatest, 30000);
+setInterval(loadBlocklist, 30000);
+setInterval(loadSecurityEvents, 30000);

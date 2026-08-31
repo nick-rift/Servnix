@@ -88,6 +88,34 @@
         <pre id="fwActionOutput" class="output"></pre>
       </div>
     </div>
+
+    <div class="card" id="card-guard">
+      <h2>🛡️ Servnix Guard · Blockliste</h2>
+      <div class="body">
+        <p class="muted">
+          Regelbasierte Angriffserkennung (keine "KI-Magie"): zaehlt echte SSH-Fehlversuche
+          und Portscan-Muster aus den Server-Logs und sperrt Angreifer-IPs automatisch am
+          gesamten Server (nicht nur im Dashboard). Daemon starten mit
+          <code>sudo ./scripts/servnix-guard.sh install</code>.
+        </p>
+        <div class="btn-row">
+          <input type="text" id="blockIpInput" placeholder="IP manuell sperren, z.B. 203.0.113.5" />
+          <button id="blockIpBtn">🚫 Sperren</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>IP</th><th>Grund</th><th>Quelle</th><th>Firewall</th><th></th></tr></thead>
+          <tbody id="blocklistBody"><tr><td colspan="5" class="muted">Lade Blockliste…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="card-security-events">
+      <h2>📜 Security-Events</h2>
+      <div class="body">
+        <p class="muted">Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geraete.</p>
+        <ul id="securityEventsList"><li class="muted">Lade Ereignisse…</li></ul>
+      </div>
+    </div>
   </section>
 </main>
 

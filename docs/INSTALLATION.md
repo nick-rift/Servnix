@@ -53,6 +53,42 @@ deploy ALL=(root) NOPASSWD: /pfad/zu/Servnix/scripts/servnix-firewall.sh
 Ersetze `deploy` durch den Linux-User, unter dem der Servnix-Prozess läuft. Ohne diesen Eintrag
 funktionieren die Buttons im Dashboard nicht – der Scan-Teil des Dashboards läuft aber trotzdem.
 
+### Servnix Guard einrichten (empfohlen)
+
+Der Guard erkennt SSH-Bruteforce-Versuche und Portscans in echten Logs und sperrt die
+Angreifer-IP automatisch (siehe README für Details). Voraussetzung: die Servnix-Firewall aus
+dem vorherigen Schritt muss installiert sein, weil sie das Scan-Log liefert, das der Guard
+für die Portscan-Erkennung ausliest.
+
+```bash
+sudo ./scripts/servnix-firewall.sh install   # falls noch nicht geschehen
+```
+
+**Bevor du den Guard aktivierst**, trage deine eigene IP (die, von der du per SSH zugreifst)
+in `.env` ein, damit du dich nicht selbst aussperrst:
+
+```env
+GUARD_ALLOWLIST=203.0.113.42
+```
+
+Dann den Guard als systemd-Dienst installieren:
+
+```bash
+sudo ./scripts/servnix-guard.sh install
+sudo ./scripts/servnix-guard.sh status
+sudo journalctl -u servnix-guard -f      # Live-Logs mitverfolgen
+```
+
+Ohne root/systemd (z. B. lokal zum Testen) kannst du einen einzelnen Durchlauf ausführen, ohne
+den Dienst dauerhaft zu installieren:
+
+```bash
+./scripts/servnix-guard.sh test
+```
+
+Weitere Feinjustierung (Schwellenwerte, Zeitfenster, USB-Monitor an/aus) über die
+`GUARD_*`-Variablen in `.env.example`.
+
 ### OPNsense anbinden (optional)
 
 1. OPNsense-Weboberfläche → **System → Access → Users** → deinen API-User öffnen → **API Keys** → neuen Key erzeugen.

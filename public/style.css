@@ -127,6 +127,36 @@ main { padding: 24px; max-width: 1200px; margin: 0 auto; }
   font-size: 0.85rem;
 }
 
+.btn-row input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  background: #06090d;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+.data-table th, .data-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px dashed var(--border);
+}
+.data-table th { color: var(--muted); font-weight: 600; }
+
+button.small { padding: 4px 10px; font-size: 0.78rem; }
+
+#securityEventsList { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow: auto; }
+#securityEventsList li { padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 0.85rem; }
+#securityEventsList li:last-child { border-bottom: none; }
+
 footer {
   text-align: center;
   color: var(--muted);
