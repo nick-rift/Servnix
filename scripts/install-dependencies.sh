@@ -94,7 +94,14 @@ if [ "$DISTRO" = "debian" ]; then
     print_info "Installing security tools..."
     sudo apt-get install -y curl wget jq openssl git > /dev/null 2>&1
     print_success "Security tools installed"
-    
+
+    # Servnix-Firewall-Basis + Brute-Force-Schutz
+    print_info "Installing nftables + fail2ban (Servnix-Firewall & Brute-Force-Schutz)..."
+    sudo apt-get install -y nftables fail2ban > /dev/null 2>&1
+    sudo systemctl enable fail2ban > /dev/null 2>&1 || true
+    sudo systemctl start fail2ban > /dev/null 2>&1 || true
+    print_success "nftables + fail2ban installiert"
+
 elif [ "$DISTRO" = "redhat" ]; then
     print_info "Installing Node.js v18+..."
     curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash - > /dev/null 2>&1
@@ -117,7 +124,14 @@ elif [ "$DISTRO" = "redhat" ]; then
     print_info "Installing security tools..."
     sudo yum install -y curl wget jq openssl git > /dev/null 2>&1
     print_success "Security tools installed"
-    
+
+    # Servnix-Firewall-Basis + Brute-Force-Schutz
+    print_info "Installing nftables + fail2ban (Servnix-Firewall & Brute-Force-Schutz)..."
+    sudo yum install -y nftables fail2ban > /dev/null 2>&1
+    sudo systemctl enable fail2ban > /dev/null 2>&1 || true
+    sudo systemctl start fail2ban > /dev/null 2>&1 || true
+    print_success "nftables + fail2ban installiert"
+
 elif [ "$OS" = "macos" ]; then
     print_info "Installing via Homebrew..."
     

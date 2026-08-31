@@ -1,0 +1,20 @@
+{
+  "name": "servnix",
+  "version": "1.0.0",
+  "description": "Servnix - Server-Sicherheits-Dashboard mit eigener Firewall, echten Scans und OPNsense-Anbindung",
+  "license": "LGPL-2.1",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "scan": "node server/cli-scan.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

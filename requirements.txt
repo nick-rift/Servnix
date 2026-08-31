@@ -1,0 +1,5 @@
+# Servnix - optionale Python-Abhaengigkeiten
+# Wird nur fuer den Python-Dependency-Scan (pip-audit) benoetigt.
+# Ohne diese Datei laeuft Servnix trotzdem - der pip-Scan wird dann
+# ehrlich als "nicht verfuegbar" markiert statt Ergebnisse vorzutaeuschen.
+pip-audit>=2.7.0
