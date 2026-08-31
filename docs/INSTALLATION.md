@@ -95,6 +95,41 @@ den Dienst dauerhaft zu installieren:
 Weitere Feinjustierung (Schwellenwerte, Zeitfenster, USB-Monitor an/aus) über die
 `GUARD_*`-Variablen in `.env.example`.
 
+### Website-Schutz einrichten (empfohlen, falls Webseiten auf dem Server laufen)
+
+Laeuft auf dem Server auch eine oder mehrere Webseiten/Webanwendungen (nginx/apache), sollte
+zusaetzlich die Web-Angriffserkennung aktiviert werden - sie ist Teil desselben Guard-Prozesses
+und braucht keinen zusaetzlichen Dienst:
+
+```bash
+# Gehaertete nginx-Konfiguration als Basis fuer eigene Webseiten nutzen:
+cp templates/nginx-hardened.conf.example /etc/nginx/sites-available/meine-seite.conf
+# -> Domain, Zertifikatspfade (Let's Encrypt) und proxy_pass anpassen
+sudo ln -s /etc/nginx/sites-available/meine-seite.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+In `.env` das/die Access-Log(s) eintragen, die der Guard auf Angriffsmuster hin durchsuchen soll:
+
+```env
+WEBGUARD_ACCESS_LOGS=/var/log/nginx/access.log
+WEBGUARD_MAX_HITS=3
+```
+
+Ist der Servnix Guard bereits laut vorigem Schritt installiert, uebernimmt er die
+Web-Angriffserkennung automatisch beim naechsten Durchlauf - kein Neustart des Dienstes noetig,
+`.env`-Aenderungen werden bei jedem Poll-Intervall neu gelesen.
+
+Fuer den aktiven Website-Scan (sensible Dateien, gefaehrliche HTTP-Methoden, CORS,
+Directory-Listing) in `.env` das Scan-Ziel auf die eigene Webseite setzen:
+
+```env
+SCAN_TARGET_HOST=meine-domain.de
+SCAN_TARGET_URL=https://meine-domain.de
+```
+
+Danach erscheinen die Ergebnisse bei jedem Scan im Dashboard unter **"Website-Sicherheit"**.
+
 ### OPNsense anbinden (optional)
 
 1. OPNsense-Weboberfläche → **System → Access → Users** → deinen API-User öffnen → **API Keys** → neuen Key erzeugen.

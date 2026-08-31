@@ -20,6 +20,7 @@
 
 require('dotenv').config();
 const { detectThreats } = require('./lib/intrusionDetection');
+const { detectWebThreats } = require('./lib/webAttackDetection');
 const { blockIp, isBlocked, logEvent } = require('./lib/blocklist');
 const { checkForNewUsbDevices } = require('./lib/usbMonitor');
 
@@ -30,6 +31,18 @@ function getEnvInt(name, fallback) {
 
 async function runOnce() {
   const threats = await detectThreats();
+
+  if (process.env.WEBGUARD_ENABLE !== 'false') {
+    // Web-Angriffserkennung ist synchron (liest nur lokale Logdateien),
+    // deshalb kein await noetig - Fehler beim Log-Lesen duerfen den Guard
+    // aber trotzdem nicht abstuerzen lassen.
+    try {
+      threats.push(...detectWebThreats());
+    } catch (err) {
+      console.error('Web-Angriffserkennung fehlgeschlagen:', err.message);
+    }
+  }
+
   for (const threat of threats) {
     if (isBlocked(threat.ip)) continue;
     const result = await blockIp(threat.ip, threat.reason, threat.source);
@@ -58,6 +71,9 @@ async function main() {
   console.log('🛡️  Servnix Guard gestartet');
   console.log(`   SSH-Bruteforce-Schwelle: ${getEnvInt('GUARD_SSH_MAX_FAILURES', 8)} Fehlversuche / ${getEnvInt('GUARD_SSH_WINDOW_MINUTES', 10)} Minuten`);
   console.log(`   Portscan-Schwelle:       ${getEnvInt('GUARD_PORTSCAN_MAX_PORTS', 15)} Ports / ${getEnvInt('GUARD_PORTSCAN_WINDOW_MINUTES', 5)} Minuten`);
+  if (process.env.WEBGUARD_ENABLE !== 'false') {
+    console.log(`   Web-Angriffs-Schwelle:   ${getEnvInt('WEBGUARD_MAX_HITS', 3)} Treffer aus ${process.env.WEBGUARD_ACCESS_LOGS || '/var/log/nginx/access.log,/var/log/apache2/access.log'}`);
+  }
 
   if (once) {
     await runOnce();

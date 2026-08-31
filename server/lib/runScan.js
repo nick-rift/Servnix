@@ -10,6 +10,7 @@ const { scanSsl } = require('./ssl');
 const { scanHttpHeaders } = require('./httpHeaders');
 const { scanDependencies } = require('./dependencyAudit');
 const { scanSystem } = require('./system');
+const { scanWebVulnerabilities } = require('./webVulnScan');
 const { computeScore } = require('./score');
 
 async function runFullScan(options = {}) {
@@ -17,15 +18,16 @@ async function runFullScan(options = {}) {
   const targetUrl = options.targetUrl || process.env.SCAN_TARGET_URL || `https://${sslHost}`;
   const cwd = options.cwd || process.cwd();
 
-  const [firewall, ssl, headers, dependencies, system] = await Promise.all([
+  const [firewall, ssl, headers, dependencies, system, webVulnerabilities] = await Promise.all([
     scanFirewall(),
     scanSsl(sslHost).catch((e) => ({ reachable: false, error: e.message })),
     scanHttpHeaders(targetUrl).catch((e) => ({ reachable: false, error: e.message })),
     scanDependencies(cwd),
     scanSystem(),
+    scanWebVulnerabilities(targetUrl).catch((e) => ({ reachable: false, error: e.message })),
   ]);
 
-  const score = computeScore({ firewall, ssl, headers, dependencies, system });
+  const score = computeScore({ firewall, ssl, headers, dependencies, system, webVulnerabilities });
 
   return {
     timestamp: new Date().toISOString(),
@@ -35,6 +37,7 @@ async function runFullScan(options = {}) {
     headers,
     dependencies,
     system,
+    webVulnerabilities,
     score,
   };
 }

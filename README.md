@@ -40,6 +40,8 @@ Was Servnix **nicht** ist: ein fertiges SOC, ein Pentest-Tool oder eine Complian
 | **System** | Kernel-Version, OS, UID-0-Accounts, letzte Logins | `uname`, `/etc/passwd`, `last` |
 | **OPNsense** | Verbindungstest, Firewall-Regeln, System-Health, IP blocken | OPNsense REST API |
 | **Guard** | SSH-Bruteforce- & Portscan-Erkennung, automatische IP-Sperrung, USB-Geräte-Alarm | `journalctl`, nftables-Log, `lsusb` |
+| **Website-Sicherheit** | Öffentlich erreichbare sensible Dateien (`.env`, `.git`, Backups), gefährliche HTTP-Methoden, CORS-Fehlkonfiguration, Directory-Listing, Versions-Banner | echte HTTP-Requests |
+| **Web-Angriffserkennung** | Exploit-Sondierung, SQL-Injection-/XSS-/Path-Traversal-Muster, Scanner-Tools im Access-Log, automatische IP-Sperrung | nginx-/apache-Access-Log |
 
 Aus allen Checks wird ein **nachvollziehbarer Security-Score** berechnet (`server/lib/score.js`) – jede Regel steht im Code, nichts wird geraten.
 
@@ -118,6 +120,61 @@ per Klick möglich.
 ⚠️ Ein Entsperren aus einem OPNsense-Alias ist **nicht automatisiert** – dafür müsste die
 Alias-Item-UUID aufgelöst werden. Wurde eine IP über OPNsense gesperrt, muss sie dort manuell
 aus dem Alias entfernt werden.
+
+---
+
+## 🌐 Website-Schutz (Webserver/Webanwendungen härten)
+
+Server-Firewall und Dashboard-Härtung schützen den Server – aber die meisten erfolgreichen
+Angriffe auf gehostete Webseiten laufen über die Webanwendung selbst (offene `.env`-Dateien,
+falsch konfiguriertes CORS, ungeschützte Admin-Panels, klassische SQLi/XSS-Sondierung). Dafür
+gibt es zwei zusammenspielende Bausteine:
+
+**1. Aktiver Website-Scan** (`server/lib/webVulnScan.js`, Teil von `POST /api/scan`) – stellt
+echte HTTP-Requests an die konfigurierte `SCAN_TARGET_URL` und prüft:
+
+- Ob sensible Dateien wie `.env`, `.git/config`, Backups (`.bak`, `.sql`) öffentlich abrufbar sind
+- Ob gefährliche HTTP-Methoden (`TRACE`, `PUT`, `DELETE`) erlaubt sind
+- CORS-Fehlkonfiguration (`Access-Control-Allow-Origin: *` zusammen mit Credentials)
+- Directory-Listing und Versions-Banner-Preisgabe im `Server`-/`X-Powered-By`-Header
+
+Ergebnis ist live im Dashboard unter **"Website-Sicherheit"** sichtbar und fließt in den
+Security-Score ein.
+
+**2. Web-Angriffserkennung im Servnix Guard** (`server/lib/webAttackDetection.js`) – liest das
+echte nginx-/apache-Access-Log und erkennt automatisiert:
+
+- Exploit-Sondierung bekannter sensibler Pfade (`.env`, `.git`, `wp-login.php`, `phpMyAdmin`, ...)
+- SQL-Injection-/XSS-/Path-Traversal-Muster in der angefragten URL
+- Bekannte Scanner-/Exploit-Tools am User-Agent (`sqlmap`, `nikto`, `nmap`, `wpscan`, ...)
+
+Wer innerhalb kurzer Zeit mehrfach auffällt (`WEBGUARD_MAX_HITS`, Standard: 3), wird – genau wie
+bei SSH-Bruteforce – automatisch serverweit gesperrt, nicht nur von der betroffenen Webseite
+ausgeschlossen.
+
+```bash
+# Access-Log(s) der eigenen Webseiten konfigurieren (komma-getrennt), z.B. in .env:
+# WEBGUARD_ACCESS_LOGS=/var/log/nginx/access.log
+
+# Gehärtete nginx-Vorlage für eigene Webseiten als Basis nutzen:
+cp templates/nginx-hardened.conf.example /etc/nginx/sites-available/meine-seite.conf
+# -> Domain, Zertifikatspfade und proxy_pass anpassen, dann aktivieren:
+sudo ln -s /etc/nginx/sites-available/meine-seite.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# Danach laeuft die Web-Angriffserkennung automatisch mit dem bereits installierten
+# Servnix Guard mit (kein separater Dienst noetig).
+```
+
+Die Vorlage setzt echte Security-Header, sperrt bekannte Exploit-Pfade direkt in nginx, erzwingt
+moderne TLS-Versionen/Cipher, deaktiviert Directory-Listing und limitiert Requests pro IP gegen
+einfache Layer-7-Flut-Angriffe.
+
+**Ehrlicher Hinweis:** Weder der Scan noch die Angriffserkennung finden "jede Schwachstelle, die
+es jemals geben wird" – das kann kein Tool. Erkannt werden die häufigsten, bekannten
+Fehlkonfigurationen und Angriffsmuster. Eigene Programmierfehler in der Webanwendung (z. B.
+fehlerhafte Business-Logik) erkennt kein automatisierter Scanner zuverlässig – dafür braucht es
+einen echten Pentest.
 
 ---
 
@@ -275,6 +332,7 @@ Kein Mockup – ein reales, per Express ausgeliefertes Web-Interface (`public/`)
 - **Firewall-Status** (Servnix-nftables + ufw), Port-Übersicht, DDoS-Härtung, fail2ban-Jails
 - **TLS/SSL-Status** mit echtem Ablaufdatum und Protokoll
 - **HTTP-Security-Header-Check**
+- **Website-Sicherheit** – sensible Dateien, gefährliche HTTP-Methoden, CORS, Directory-Listing
 - **Dependency-Audit** (npm/pip)
 - **OPNsense-Kachel** mit Live-Verbindungsstatus
 - **Firewall-Steuerung** (install/enable/disable/status per Klick)
@@ -291,12 +349,13 @@ Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ei
 | ✅ Was stimmt | ❌ Was Servnix NICHT ersetzt |
 |---|---|
 | Echte, live geprüfte Firewall-/TLS-/Header-/Dependency-Daten | Ein zertifiziertes Pentest oder einen Security-Audit durch Dritte |
-| Eine funktionierende, eigenständige nftables-Firewall | WAF-Schutz auf Layer 7 gegen komplexe Angriffe |
+| Eine funktionierende, eigenständige nftables-Firewall | Ein vollwertiges WAF wie ModSecurity/Coraza gegen jede Anwendungslogik-Schwachstelle |
 | Echte OPNsense-API-Anbindung (Basic Auth mit Key/Secret) | Enterprise-DDoS-Schutz auf Netzwerkebene (dafür brauchst du einen Provider wie Cloudflare/OPNsense mit ausreichend Bandbreite) |
 | Ein Score, dessen Berechnung offen im Code liegt | Eine Garantie für "100% sicher" – das gibt es nicht |
 | Automatische IP-Sperrung bei echten SSH-Bruteforce-/Portscan-Mustern | "KI" im Sinne von Machine Learning – der Guard ist regelbasiert, keine Blackbox |
 | USB-Geräte-Erkennung & Alarmierung im Log | Physisches Blockieren eines USB-Geräts (dafür braucht es zusätzlich `usbguard`) |
 | Echte Security-Header, Rate-Limiting, Bruteforce-Schutz, Slowloris-Härtung auf der Dashboard-App selbst | Schutz vor jedem denkbaren Angriff – "100% gegen alle Cyberangriffe" ist als Versprechen unseriös, siehe [docs/SECURITY.md](docs/SECURITY.md) |
+| Echter Website-Scan + automatische IP-Sperrung bei erkannter Exploit-Sondierung/SQLi/XSS im Access-Log | Schutz vor unbekannten Zero-Day-Lücken in der eigenen Webanwendung – dafür braucht es Pentests/OWASP-Tools wie ZAP/Burp |
 
 ---
 

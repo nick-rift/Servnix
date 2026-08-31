@@ -72,6 +72,17 @@ async function main() {
   console.log(`ℹ️  ${result.system.osRelease || result.system.platform}, Kernel ${result.system.kernelVersion}`);
   console.log(`${statusIcon(!result.system.unexpectedRootAccounts || result.system.unexpectedRootAccounts.length === 0)} UID-0-Accounts: ${(result.system.uidZeroAccounts || []).join(', ')}`);
 
+  console.log('\n[Website-Sicherheit]');
+  const web = result.webVulnerabilities;
+  if (web && web.reachable) {
+    console.log(`${statusIcon(!web.exposedFiles || web.exposedFiles.length === 0)} Sensible Dateien oeffentlich erreichbar: ${(web.exposedFiles || []).join(', ') || 'keine'}`);
+    console.log(`${statusIcon(!web.methods || !web.methods.dangerous || web.methods.dangerous.length === 0)} Gefaehrliche HTTP-Methoden: ${(web.methods && web.methods.dangerous || []).join(', ') || 'keine'}`);
+    console.log(`${statusIcon(!(web.cors && web.cors.wildcardWithCredentials))} CORS-Fehlkonfiguration (Wildcard + Credentials): ${web.cors && web.cors.wildcardWithCredentials ? 'JA' : 'nein'}`);
+    console.log(`${statusIcon(!web.directoryListing)} Directory-Listing: ${web.directoryListing ? 'aktiv' : 'inaktiv'}`);
+  } else {
+    console.log(`⚠️  ${result.target.targetUrl} nicht erreichbar (${web ? web.error : 'unbekannt'})`);
+  }
+
   console.log(`\n${line()}`);
   console.log(`📊 Security Score: ${result.score.scoreOutOf10} / 10  (${result.score.totalPoints}/${result.score.totalMax} Punkte)`);
   if (result.score.findings.length) {

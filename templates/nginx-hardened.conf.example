@@ -1,0 +1,82 @@
+# templates/nginx-hardened.conf.example
+#
+# Gehaertete nginx-Server-Block-Vorlage fuer Webseiten/Webanwendungen, die
+# auf demselben Server wie Servnix laufen. Jede Zeile ist eine ECHTE,
+# funktionierende nginx-Direktive - kein Pseudo-Code.
+#
+# Das ist eine Vorlage, kein Auto-Deploy: Domain, Zertifikatspfade und
+# proxy_pass anpassen und unter /etc/nginx/sites-available/ einbinden.
+#
+# Ehrlicher Hinweis: Diese Konfiguration reduziert die haeufigsten,
+# bekannten Angriffsvektoren (Exploit-Sondierung, Methoden-Missbrauch,
+# einfache L7-Flut-Angriffe, Informationslecks). Sie ist KEIN Ersatz fuer
+# ein vollwertiges WAF wie ModSecurity/Coraza und schuetzt nicht gegen
+# unbekannte Zero-Day-Luecken in der eigenen Webanwendung - das kann keine
+# Konfiguration der Welt leisten.
+
+# --- Rate-Limiting-Zone (einmal pro http{}-Block in nginx.conf definieren) ---
+# limit_req_zone $binary_remote_addr zone=servnix_rl:10m rate=10r/s;
+# limit_conn_zone $binary_remote_addr zone=servnix_conn:10m;
+
+server {
+    listen 443 ssl http2;
+    server_name deine-domain.example;
+
+    ssl_certificate     /etc/letsencrypt/live/deine-domain.example/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/deine-domain.example/privkey.pem;
+
+    # Nur moderne TLS-Versionen und Cipher zulassen (kein SSLv3/TLSv1/TLSv1.1).
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_session_tickets off;
+
+    # Keine Server-Version in Antworten preisgeben.
+    server_tokens off;
+
+    # Echte HTTP-Security-Header (werden von Servnix' /api/hardening/status
+    # und dem Website-Scan geprueft).
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    add_header Content-Security-Policy "default-src 'self'" always;
+
+    # Nur die HTTP-Methoden erlauben, die die Anwendung wirklich braucht.
+    if ($request_method !~ ^(GET|HEAD|POST)$) {
+        return 405;
+    }
+
+    # Rate-Limiting gegen L7-Flooding (aus servnix_rl-Zone oben).
+    limit_req zone=servnix_rl burst=20 nodelay;
+    limit_conn servnix_conn 20;
+
+    # Exploit-Sondierungspfade direkt ablehnen, bevor sie die Anwendung
+    # erreichen - Servnix Guard erkennt Zugriffsversuche darauf zusaetzlich
+    # im Access-Log und sperrt die Quelle serverweit.
+    location ~* /\.(env|git|ssh|aws)(/|$) { return 444; }
+    location ~* \.(bak|sql|log)$ { return 444; }
+    location ~* /(wp-login\.php|wp-admin/setup-config\.php|xmlrpc\.php|phpmyadmin) { return 444; }
+
+    # Kein Directory-Listing.
+    autoindex off;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080; # <- Port deiner Anwendung
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Zugriffslog im Standard-"combined"-Format - genau das Format, das
+    # server/lib/webAttackDetection.js liest, um Angriffsmuster zu erkennen.
+    access_log /var/log/nginx/access.log combined;
+}
+
+server {
+    listen 80;
+    server_name deine-domain.example;
+    return 301 https://$host$request_uri;
+}

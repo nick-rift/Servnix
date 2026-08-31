@@ -87,6 +87,24 @@ function renderHeaders(headers) {
   el.innerHTML = headers.findings.map((f) => kv(f.name, icon(f.present))).join('');
 }
 
+function renderWebVuln(web) {
+  const el = $('#card-webvuln .body');
+  if (!web || !web.reachable) {
+    el.innerHTML = `<p class="muted">Nicht erreichbar: ${(web && web.error) || 'unbekannt'}</p>`;
+    return;
+  }
+  const parts = [];
+  parts.push(kv('Sensible Dateien öffentlich', icon(!web.exposedFiles || web.exposedFiles.length === 0)));
+  if (web.exposedFiles && web.exposedFiles.length > 0) {
+    parts.push(kv('Gefundene Pfade', web.exposedFiles.join(', ')));
+  }
+  parts.push(kv('Gefährliche HTTP-Methoden', icon(!web.methods || !web.methods.dangerous || web.methods.dangerous.length === 0)));
+  parts.push(kv('CORS-Fehlkonfiguration', icon(!(web.cors && web.cors.wildcardWithCredentials))));
+  parts.push(kv('Directory-Listing', icon(!web.directoryListing)));
+  parts.push(kv('Versionsangabe im Header', icon(!(web.banner && web.banner.versionLeak))));
+  el.innerHTML = parts.join('');
+}
+
 function renderDeps(deps) {
   const el = $('#card-deps .body');
   const parts = [];
@@ -125,6 +143,7 @@ function renderScan(result) {
   renderPorts(result.firewall);
   renderSsl(result.ssl);
   renderHeaders(result.headers);
+  renderWebVuln(result.webVulnerabilities);
   renderDeps(result.dependencies);
   renderSystem(result.system);
   renderScore(result.score);
