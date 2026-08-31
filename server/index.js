@@ -14,6 +14,12 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
+// Sicherheitsvorgabe: Das Dashboard bindet standardmaessig NUR an localhost,
+// damit es nicht ungewollt ueber die oeffentliche Server-IP erreichbar ist.
+// Zugriff von aussen erfolgt bewusst per SSH-Tunnel (siehe README/INSTALLATION.md).
+// Nur wenn HOST explizit gesetzt wird (z.B. hinter einem eigenen Reverse-Proxy),
+// bindet der Server auf ein anderes Interface.
+const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const LATEST_SCAN_FILE = path.join(DATA_DIR, 'latest-scan.json');
@@ -114,7 +120,12 @@ app.post('/api/opnsense/block-ip', async (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
-app.listen(PORT, () => {
-  console.log(`Servnix Dashboard laeuft auf http://localhost:${PORT}`);
-  console.log('Ersten Scan ausloesen mit: curl -X POST http://localhost:' + PORT + '/api/scan');
+app.listen(PORT, HOST, () => {
+  console.log(`Servnix Dashboard laeuft auf http://${HOST}:${PORT}`);
+  if (HOST === '127.0.0.1' || HOST === 'localhost') {
+    console.log('→ Nur lokal erreichbar (Sicherheitsvorgabe). Zugriff von deinem PC per SSH-Tunnel:');
+    console.log(`   ssh -L ${PORT}:localhost:${PORT} <user>@<server-ip>`);
+    console.log(`   Danach im Browser: http://localhost:${PORT}`);
+  }
+  console.log(`Ersten Scan ausloesen mit: curl -u <user>:<passwort> -X POST http://${HOST}:${PORT}/api/scan`);
 });

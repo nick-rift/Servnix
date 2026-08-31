@@ -116,13 +116,56 @@ sudo ./scripts/servnix-firewall.sh install
 npm install
 npm start
 ```
-Dashboard läuft dann unter `http://<dein-server>:3000` (Login mit `DASHBOARD_USER` + dem gesetzten Passwort).
+```
+Servnix Dashboard laeuft auf http://127.0.0.1:3000
+→ Nur lokal erreichbar (Sicherheitsvorgabe). Zugriff von deinem PC per SSH-Tunnel:
+   ssh -L 3000:localhost:3000 <user>@<server-ip>
+   Danach im Browser: http://localhost:3000
+```
 
 **6. Ersten Scan ausführen**
 ```bash
 ./scripts/security-scan.sh
 # oder direkt im Dashboard auf "Scan jetzt ausführen" klicken
 ```
+
+---
+
+## 🖥️ Dashboard aufrufen (nur über localhost, nicht über die Server-IP)
+
+Aus Sicherheitsgründen bindet der Server standardmäßig **nur an `127.0.0.1`** (siehe `HOST` in
+`.env.example`). Das Dashboard ist also **nie** direkt über die öffentliche Server-IP oder eine
+Domain erreichbar – auch nicht, wenn Firewall-Ports offen wären. Zugriff von deinem eigenen
+Rechner läuft über einen SSH-Tunnel:
+
+**Auf deinem lokalen PC/Mac/Laptop** (nicht auf dem Server):
+```bash
+ssh -L 3000:localhost:3000 <dein-user>@<server-ip>
+```
+Dieser Befehl baut eine verschlüsselte Verbindung zum Server auf und leitet `localhost:3000`
+auf deinem PC durch den Tunnel zum Dashboard auf dem Server weiter. Die SSH-Sitzung muss dabei
+offen bleiben (Terminal-Fenster nicht schließen).
+
+**Danach im Browser auf deinem PC öffnen:**
+```
+http://localhost:3000
+```
+Login mit `DASHBOARD_USER` (Standard: `admin`) und dem Passwort, das du mit
+`node server/cli-hash-password.js` gesetzt hast.
+
+Sobald du den Tunnel schließt (SSH-Sitzung beenden), ist das Dashboard von deinem PC aus
+nicht mehr erreichbar – und war es von überall sonst im Internet nie.
+
+**Alternative:** Läuft der Server dauerhaft, kannst du den Tunnel bequem im Hintergrund halten:
+```bash
+ssh -f -N -L 3000:localhost:3000 <dein-user>@<server-ip>
+```
+(`-f` schickt SSH in den Hintergrund, `-N` öffnet keine Shell, nur den Tunnel.)
+
+Ein Reverse-Proxy mit eigenem TLS-Zertifikat und eigener Domain ist bewusst **nicht** die
+empfohlene Standardlösung, weil Servnix damit Angriffsfläche im Netz hätte. Wer das trotzdem
+möchte, kann `HOST=0.0.0.0` setzen und selbst einen abgesicherten Reverse-Proxy davorsetzen –
+siehe Warnhinweis dazu in `.env.example`.
 
 ---
 

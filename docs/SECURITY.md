@@ -37,6 +37,8 @@ kontaktiere den Maintainer direkt über die im Profil hinterlegten Kanäle.
 
 - Dashboard-Passwort setzen (`node server/cli-hash-password.js`), sonst ist es offen.
 - `.env` niemals committen (steht in `.gitignore`).
-- Servnix-Dashboard hinter einen Reverse-Proxy mit echtem TLS-Zertifikat stellen.
+- Server bindet standardmäßig nur an `127.0.0.1` – Zugriff von außen per SSH-Tunnel, nicht per
+  öffentlicher IP/Domain. `HOST=0.0.0.0` nur setzen, wenn ein eigener, abgesicherter
+  Reverse-Proxy mit TLS + Auth davor steht.
 - OPNsense-API-Zugangsdaten wie jedes andere Admin-Passwort behandeln und rotieren.
 - Regelmäßig `./scripts/security-scan.sh` laufen lassen und die "Offenen Punkte" abarbeiten.
