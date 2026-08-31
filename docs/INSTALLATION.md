@@ -31,6 +31,12 @@ node server/cli-hash-password.js "DeinSicheresPasswort"
 
 Den Ausgabe-Hash in `.env` als `DASHBOARD_PASSWORD_HASH` eintragen, `DASHBOARD_USER` bei Bedarf anpassen.
 
+Die restlichen Härtungsmaßnahmen (Security-Header, Login-Bruteforce-Schutz, Rate-Limiting,
+Slowloris-Timeouts) sind **immer aktiv**, ohne dass du etwas dafür konfigurieren musst - nur die
+Schwellenwerte lassen sich über `DASHBOARD_MAX_LOGIN_FAILURES`, `DASHBOARD_LOGIN_WINDOW_MINUTES`,
+`RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_SECONDS` und
+`RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK` in `.env` anpassen (siehe `.env.example`).
+
 ### Servnix-Firewall einrichten (empfohlen)
 
 ```bash

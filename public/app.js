@@ -160,13 +160,13 @@ async function loadOpnsense() {
   const hintEl = $('#opnsenseHint');
   if (!cfg.configured) {
     statusEl.innerHTML = `${icon(false)} Nicht konfiguriert`;
-    hintEl.style.display = 'block';
+    hintEl.classList.remove('hidden');
     return;
   }
   const test = await api('/api/opnsense/test');
   if (test.connected) {
     statusEl.innerHTML = `${icon(true)} Verbunden mit ${cfg.host}`;
-    hintEl.style.display = 'none';
+    hintEl.classList.add('hidden');
     const rules = await api('/api/opnsense/rules');
     const el = $('#opnsenseRules');
     if (rules.ok && rules.data && Array.isArray(rules.data.rows)) {
@@ -174,7 +174,7 @@ async function loadOpnsense() {
     }
   } else {
     statusEl.innerHTML = `${icon(false)} Verbindung fehlgeschlagen: ${test.error}`;
-    hintEl.style.display = 'block';
+    hintEl.classList.remove('hidden');
   }
 }
 
@@ -276,6 +276,25 @@ function bindBlockForm() {
   });
 }
 
+async function loadHardeningStatus() {
+  const el = $('#hardeningBody');
+  try {
+    const s = await api('/api/hardening/status');
+    el.innerHTML = [
+      kv('Security-Header (Helmet)', icon(s.securityHeaders)),
+      kv('Dashboard-Passwort gesetzt', icon(s.dashboardAuth)),
+      kv('Login-Bruteforce-Schutz', `${icon(true)} ${s.loginBruteforceProtection.maxFailures} Versuche / ${s.loginBruteforceProtection.windowMinutes} Min.`),
+      kv('App-Rate-Limiting', `${icon(true)} ${s.rateLimiting.maxRequests} Req. / ${s.rateLimiting.windowSeconds}s`),
+      kv('Guard-Allowlist gesetzt', icon(s.guardAllowlistConfigured)),
+      kv('Host-Bindung', s.hostBinding),
+    ].join('') + (s.hostBinding === '127.0.0.1' || s.hostBinding === 'localhost'
+      ? '<p class="hint hint-spaced">Hinweis: Über den SSH-Tunnel sieht das Dashboard jeden Zugriff als 127.0.0.1 - die Login-Bruteforce-Sperre schützt daher primär bei abweichender HOST-Konfiguration (z.B. hinter einem eigenen Reverse-Proxy). Auf dem SSH-Zugang selbst schützt stattdessen der Servnix Guard / fail2ban.</p>'
+      : '');
+  } catch (err) {
+    el.innerHTML = `<p class="muted">Fehler: ${err.message}</p>`;
+  }
+}
+
 $('#scanBtn').addEventListener('click', triggerScan);
 bindFirewallActions();
 bindBlockForm();
@@ -283,6 +302,7 @@ loadLatest();
 loadOpnsense();
 loadBlocklist();
 loadSecurityEvents();
+loadHardeningStatus();
 setInterval(loadLatest, 30000);
 setInterval(loadBlocklist, 30000);
 setInterval(loadSecurityEvents, 30000);

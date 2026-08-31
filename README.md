@@ -121,6 +121,44 @@ aus dem Alias entfernt werden.
 
 ---
 
+## 🔐 Dashboard-Härtung (Schutz der App selbst)
+
+Die beste Firewall nützt nichts, wenn die Dashboard-App selbst eine Schwachstelle ist. Deshalb
+ist das Dashboard zusätzlich auf App-Ebene gehärtet – unabhängig von nftables/OPNsense:
+
+- **Echte Security-Header per [Helmet](https://helmetjs.github.io/)** – CSP, `X-Frame-Options`,
+  `X-Content-Type-Options`, kein `X-Powered-By`. Das Dashboard hält sich damit an genau die
+  Header, die es selbst bei anderen Servern prüft.
+- **Login-Bruteforce-Schutz** – wer wiederholt ein falsches Dashboard-Passwort probiert, wird
+  nach `DASHBOARD_MAX_LOGIN_FAILURES` Versuchen (Standard: 5) automatisch über die Blockliste
+  gesperrt – genau wie bei SSH-Bruteforce. Zeitfenster: `DASHBOARD_LOGIN_WINDOW_MINUTES`.
+- **App-Ebene-Rate-Limiting** – begrenzt Requests pro IP (`RATE_LIMIT_MAX_REQUESTS` /
+  `RATE_LIMIT_WINDOW_SECONDS`). Wer wiederholt in Folge das Limit reißt, wird zusätzlich komplett
+  gesperrt (`RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK`). Das fängt Request-Fluten ab, die über
+  einen bereits erlaubten Port (z. B. den SSH-Tunnel-Port) an der Netzwerk-Firewall vorbeikommen.
+- **Slowloris-Härtung** – kurze HTTP-Timeouts (`headersTimeout`, `requestTimeout`,
+  `keepAliveTimeout`) verhindern, dass langsame/hängende Verbindungen den Node-Prozess
+  ausbremsen.
+- **Begrenzte Body-Größe** (`64kb`) gegen übergroße Request-Payloads.
+- **Timing-sicherer Passwortvergleich** (`crypto.timingSafeEqual`) gegen Timing-Angriffe auf
+  Benutzername/Passwort.
+- **Log-Rotation** für `security-events.log`, damit ein Angreifer die Festplatte nicht durch
+  endlos viele ausgelöste Events füllen kann (Disk-Exhaustion-Schutz).
+
+Alle Werte sind live im Dashboard unter **"Dashboard-Härtung"** einsehbar
+(`GET /api/hardening/status`).
+
+**Ehrlicher Hinweis zur Grenze dieses Schutzes:** Solange das Dashboard wie empfohlen nur über
+`127.0.0.1` + SSH-Tunnel erreichbar ist, sieht die App **jeden** Zugriff als `127.0.0.1` – die
+echte Angreifer-IP wird durch den SSH-Tunnel maskiert. Die Login-Bruteforce-Sperre kann in
+diesem Standard-Setup also niemanden tatsächlich aussperren (Loopback-Adressen werden aus
+Selbstaussperr-Schutz ohnehin nie gesperrt) – sie greift vor allem, wenn `HOST` bewusst geändert
+wird (z. B. hinter einem eigenen Reverse-Proxy mit echten Client-IPs). Der eigentliche Schutz
+für den SSH-Zugang selbst ist und bleibt der Servnix Guard (SSH-Bruteforce-Erkennung) bzw.
+`fail2ban` direkt auf dem SSH-Daemon.
+
+---
+
 ## 🔗 OPNsense-Anbindung (optional)
 
 Wenn du bereits eine OPNsense-Firewall betreibst, kann Servnix sich damit verbinden statt (oder zusätzlich zu) der eigenen nftables-Firewall:
@@ -242,6 +280,7 @@ Kein Mockup – ein reales, per Express ausgeliefertes Web-Interface (`public/`)
 - **Firewall-Steuerung** (install/enable/disable/status per Klick)
 - **Servnix Guard · Blockliste** – gesperrte IPs mit Grund/Quelle/Sync-Status, manuelles Sperren/Entsperren per Klick
 - **Security-Events** – Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geräte
+- **Dashboard-Härtung** – Live-Status von Security-Headern, Login-Bruteforce-Schutz, Rate-Limiting
 
 Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ein neuer Voll-Scan wird per Button oder `POST /api/scan` ausgelöst.
 
@@ -257,6 +296,7 @@ Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ei
 | Ein Score, dessen Berechnung offen im Code liegt | Eine Garantie für "100% sicher" – das gibt es nicht |
 | Automatische IP-Sperrung bei echten SSH-Bruteforce-/Portscan-Mustern | "KI" im Sinne von Machine Learning – der Guard ist regelbasiert, keine Blackbox |
 | USB-Geräte-Erkennung & Alarmierung im Log | Physisches Blockieren eines USB-Geräts (dafür braucht es zusätzlich `usbguard`) |
+| Echte Security-Header, Rate-Limiting, Bruteforce-Schutz, Slowloris-Härtung auf der Dashboard-App selbst | Schutz vor jedem denkbaren Angriff – "100% gegen alle Cyberangriffe" ist als Versprechen unseriös, siehe [docs/SECURITY.md](docs/SECURITY.md) |
 
 ---
 
