@@ -33,17 +33,17 @@ print_check() {
 
 print_pass() {
     echo -e "${GREEN}✅ $1${NC}"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 }
 
 print_fail() {
     echo -e "${RED}❌ $1${NC}"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 }
 
 print_warn() {
     echo -e "${YELLOW}⚠️  $1${NC}"
-    ((WARNING++))
+    WARNING=$((WARNING + 1))
 }
 
 # Start validation
@@ -136,7 +136,23 @@ else
 fi
 
 echo ""
-print_header "3. Security Tools"
+print_header "3. Firewall & Security Tools"
+
+# Check nftables (Basis der Servnix-Firewall)
+print_check "Checking nftables..."
+if command -v nft &> /dev/null; then
+    print_pass "nftables installiert ($(nft --version | head -1))"
+else
+    print_fail "nftables nicht installiert (wird fuer die Servnix-Firewall benoetigt: sudo apt-get install nftables)"
+fi
+
+# Check fail2ban (Brute-Force-/DDoS-Schutz)
+print_check "Checking fail2ban..."
+if command -v fail2ban-client &> /dev/null; then
+    print_pass "fail2ban installiert"
+else
+    print_warn "fail2ban nicht installiert (empfohlen fuer Brute-Force-Schutz: sudo apt-get install fail2ban)"
+fi
 
 # Check openssl
 print_check "Checking OpenSSL..."

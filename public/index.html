@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Servnix Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">⚡ SERVNIX <span>Security Dashboard</span></div>
+  <div class="actions">
+    <span id="lastScan" class="muted">Noch kein Scan</span>
+    <button id="scanBtn">🔍 Scan jetzt ausführen</button>
+  </div>
+</header>
+
+<main>
+  <section class="score-card">
+    <div class="score-ring">
+      <div id="scoreValue">–</div>
+      <div class="score-label">/ 10</div>
+    </div>
+    <div class="score-findings">
+      <h3>Offene Punkte</h3>
+      <ul id="findingsList"><li class="muted">Noch keine Daten. Scan starten.</li></ul>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card" id="card-firewall">
+      <h2>🧱 Firewall</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-ddos">
+      <h2>🚨 DDoS-Schutz</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-ports">
+      <h2>🌐 Offene Ports</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-ssl">
+      <h2>🔒 TLS/SSL</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-headers">
+      <h2>🛡️ HTTP Security Header</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-deps">
+      <h2>📦 Dependency-Audit</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-system">
+      <h2>🖥️ System</h2>
+      <div class="body"><p class="muted">–</p></div>
+    </div>
+
+    <div class="card" id="card-opnsense">
+      <h2>🔗 OPNsense</h2>
+      <div class="body">
+        <p id="opnsenseStatus" class="muted">Prüfe Verbindung…</p>
+        <div id="opnsenseHint" class="hint" style="display:none">
+          <p>Noch nicht verbunden. Trage Host, API-Key und API-Secret in <code>.env</code> ein
+          (unter <em>System → Access → Users → API Keys</em> in OPNsense erzeugen) und starte den Server neu.</p>
+        </div>
+        <div id="opnsenseRules"></div>
+      </div>
+    </div>
+
+    <div class="card" id="card-servnix-fw">
+      <h2>⚙️ Servnix-Firewall verwalten</h2>
+      <div class="body">
+        <p class="muted">Eigenes nftables-Regelwerk mit Default-Deny, Rate-Limiting und Portscan-Erkennung.</p>
+        <div class="btn-row">
+          <button data-fw-action="install">Installieren</button>
+          <button data-fw-action="enable">Aktivieren</button>
+          <button data-fw-action="disable" class="danger">Deaktivieren</button>
+          <button data-fw-action="status">Status</button>
+        </div>
+        <pre id="fwActionOutput" class="output"></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Servnix · alle Werte auf dieser Seite stammen aus echten, live ausgeführten Systemchecks – keine Beispieldaten.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

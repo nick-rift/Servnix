@@ -3,9 +3,9 @@
 <img src="https://raw.githubusercontent.com/nick-rift/Servnix/main/assets/logo.svg" width="120" height="120" alt="Servnix Logo">
 
 # ⚡ SERVNIX ⚡
-### Enterprise Server Security & Auto-Updates
+### Server-Sicherheits-Dashboard mit echter Firewall, echten Scans und OPNsense-Anbindung
 
-**Kein Kundenservice. Kein Support-Bullshit. Nur pure Sicherheit und Automation.**
+**Kein Kundenservice. Kein Support-Bullshit. Nur Code, der wirklich läuft.**
 
 [![TikTok](https://img.shields.io/badge/TikTok-@nick.rift-000000?style=for-the-badge&logo=tiktok&logoColor=white)](https://www.tiktok.com/@nick.rift)
 [![Instagram](https://img.shields.io/badge/Instagram-@nick.rift-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/nick.rift)
@@ -15,100 +15,68 @@
 
 ---
 
-## 🎯 Was ist Servnix?
+## 🎯 Was ist Servnix wirklich?
 
-Servnix ist ein **Enterprise-Grade Automation-Framework**, das deinen Server:
+Servnix ist ein selbst gehostetes Node.js-Dashboard, das auf deinem Server läuft und drei Dinge tatsächlich tut:
 
-- 🔄 **Kontinuierlich updatet** (Dependencies, Patches, Security-Fixes)
-- 🔒 **Rundum überwacht** (Firewall, SSL/TLS, Ports, Vulnerabilities)
-- 🚨 **Proaktiv schützt** (DDoS-Detection, Web-Attack-Prevention, Intrusion-Detection)
-- 📊 **Transparent dokumentiert** (Reports, Audit-Logs, Security-Dashboards)
-- 👥 **Community-Driven entwickelt** (Open-Source, alle können mitwirken)
+1. **Es scannt deinen Server live** – Firewall-Status, offene Ports, TLS/SSL-Zertifikat, HTTP-Security-Header, npm/pip-Vulnerabilities, Kernel/OS, fail2ban – alles per echten System-Kommandos (`nft`, `ss`, `openssl`, `npm audit`, `sysctl`, …), nicht per Beispieldaten.
+2. **Es bringt eine eigene Firewall mit** – `servnix-firewall.sh` baut ein nftables-Regelwerk mit Default-Deny, Stateful Filtering, SYN-Flood-/Portscan-Schutz und Rate-Limiting, komplett unabhängig von OPNsense.
+3. **Es kann optional mit OPNsense sprechen** – über die offizielle OPNsense-REST-API (API-Key/Secret), um Regeln/Status abzufragen und IPs zu sperren.
+
+Was Servnix **nicht** ist: ein fertiges SOC, ein Pentest-Tool oder eine Compliance-Zertifizierung. Jede Zahl im Dashboard kommt aus einem echten Check auf deinem System. Wenn ein Tool fehlt (z. B. `fail2ban`), steht das ehrlich als "nicht installiert" da – nicht als grüner Haken.
 
 ---
 
-## ⚡ Kernfeatures
+## ⚡ Was tatsächlich funktioniert
 
-### 🤖 Automatisierung
+| Bereich | Was gecheckt wird | Womit |
+|---|---|---|
+| **Firewall** | Servnix-nftables-Status, ufw-Status, offene Ports, Default-Deny, Rate-Limiting | `nft`, `ufw`, `ss` |
+| **DDoS-Härtung** | SYN-Cookies, rp_filter (Anti-Spoofing), ICMP-Redirects | `sysctl` |
+| **Brute-Force-Schutz** | fail2ban-Status & aktive Jails | `fail2ban-client` |
+| **TLS/SSL** | Reales Zertifikat, Protokollversion, Gültigkeit, Cipher | Node `tls`-Modul |
+| **HTTP-Security-Header** | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy | echter HTTP-Request |
+| **Dependency-Audit** | npm-Vulnerabilities, Python-Vulnerabilities | `npm audit`, `pip-audit` |
+| **System** | Kernel-Version, OS, UID-0-Accounts, letzte Logins | `uname`, `/etc/passwd`, `last` |
+| **OPNsense** | Verbindungstest, Firewall-Regeln, System-Health, IP blocken | OPNsense REST API |
 
-| Feature | Beschreibung | Frequenz |
-|---------|-------------|----------|
-| **Dependency Updates** | npm, pip, Docker, Cargo, Go Modules | Täglich |
-| **Security Patches** | OS, Runtime, Libraries | Sofort bei Verfügbarkeit |
-| **Auto-Testing** | Unit, Integration, Security Tests | Vor jedem Update |
-| **Auto-Merge** | Sichere Updates automatisch mergen | Wenn Tests pass |
-| **Changelog Generation** | Automatische Release Notes | Bei jedem Deploy |
+Aus allen Checks wird ein **nachvollziehbarer Security-Score** berechnet (`server/lib/score.js`) – jede Regel steht im Code, nichts wird geraten.
 
-### 🔒 Sicherheits-Scanning
+---
 
-<details>
-<summary><b>🌐 Network & Infrastructure</b></summary>
+## 🧱 Die Servnix-Firewall (eigenständig, ohne OPNsense)
 
-- ✅ **Firewall Rules Check** – UFW/iptables Validierung
-- ✅ **Open Ports Scan** – Unerwünschte Services detektieren
-- ✅ **SSL/TLS Audit** – Zertifikat-Gültigkeit, Cipher-Stärke
-- ✅ **DDoS Protection** – Rate-Limiting, Fail2Ban Status
-- ✅ **IPv4/IPv6 Security** – Routing & Spoofing-Detection
-</details>
+`scripts/servnix-firewall.sh` legt eine eigene nftables-Tabelle `servnix_fw` an:
 
-<details>
-<summary><b>📦 Application & Dependencies</b></summary>
+- **Default-Deny** auf `INPUT` – alles, was nicht explizit erlaubt ist, wird verworfen.
+- **Stateful Filtering** – nur Pakete zu bereits etablierten/eigenen Verbindungen kommen durch.
+- **Portscan-Erkennung** – klassische Scan-Flag-Kombinationen (NULL-Scan, SYN-FIN, SYN-RST) werden verworfen.
+- **SYN-Flood-/DDoS-Rate-Limiting** – neue Verbindungen werden pro Sekunde begrenzt, SSH zusätzlich strenger.
+- **Kernel-Härtung** – SYN-Cookies, rp_filter, deaktivierte ICMP-Redirects werden per `sysctl` gesetzt.
+- **Persistenz** – die Regeln werden unter `/etc/nftables.servnix/` gespeichert und per systemd-Service beim Boot geladen.
 
-- ✅ **npm Audit** – Node.js Package Vulnerabilities
-- ✅ **pip Audit** – Python Package Vulnerabilities
-- ✅ **Docker Scan** – Container Image Security
-- ✅ **Cargo Audit** – Rust Dependencies
-- ✅ **SAST Analysis** – Code-Level Security Issues
-- ✅ **SCA Scanning** – Supply Chain Security
-</details>
+```bash
+sudo ./scripts/servnix-firewall.sh install   # einmalig einrichten (braucht root)
+sudo ./scripts/servnix-firewall.sh status    # aktuelles Regelwerk anzeigen
+sudo ./scripts/servnix-firewall.sh disable   # nur im Notfall - Server ist danach ungeschützt
+```
 
-<details>
-<summary><b>🌍 Web & API Security</b></summary>
+Anpassbar über Umgebungsvariablen: `SERVNIX_ALLOW_TCP_PORTS="22,80,443"`, `SERVNIX_SSH_PORT="22"`.
 
-- ✅ **OWASP Top 10 Scan** – SQL Injection, XSS, CSRF, etc.
-- ✅ **SSL/TLS Grade** – A+ Rating Standard
-- ✅ **HTTP Security Headers** – CSP, X-Frame, HSTS
-- ✅ **API Endpoint Security** – Rate-Limit, Auth-Check
-- ✅ **Cookie Security** – Secure, HttpOnly, SameSite
-- ✅ **CMS Vulnerability Scan** – WordPress, Drupal, etc.
-</details>
+Das Dashboard kann `install` / `enable` / `disable` / `status` auch per Button auslösen (Server braucht dafür passwortlose `sudo`-Rechte für genau dieses Script – siehe [docs/INSTALLATION.md](docs/INSTALLATION.md)).
 
-<details>
-<summary><b>🖥️ System & OS Security</b></summary>
+---
 
-- ✅ **Kernel Vulnerability Scan** – CVE Database Matching
-- ✅ **System Package Updates** – apt, yum, pacman, brew
-- ✅ **User & Permission Audit** – Unauthorized Accounts
-- ✅ **File Integrity Monitoring** – AIDE/Tripwire
-- ✅ **Log Analysis** – Suspicious Activities
-- ✅ **Compliance Check** – CIS Benchmarks, HIPAA, GDPR
-</details>
+## 🔗 OPNsense-Anbindung (optional)
 
-<details>
-<summary><b>📡 Monitoring & Alerts</b></summary>
+Wenn du bereits eine OPNsense-Firewall betreibst, kann Servnix sich damit verbinden statt (oder zusätzlich zu) der eigenen nftables-Firewall:
 
-- ✅ **Real-time Alerts** – Instant Notification bei kritischen Issues
-- ✅ **Automated Reports** – Tägliche/Wöchentliche Security Briefs
-- ✅ **Metrics Dashboard** – Unified Monitoring Interface
-- ✅ **Audit Trails** – Vollständige Change-Logs
-- ✅ **Threat Intelligence** – External Threat Feeds
-</details>
+1. In OPNsense: **System → Access → Users → API Keys** → neuen Key erzeugen.
+2. In `.env`: `OPNSENSE_HOST`, `OPNSENSE_API_KEY`, `OPNSENSE_API_SECRET` eintragen.
+3. Dashboard neu starten – die OPNsense-Kachel zeigt Verbindungsstatus, Regelanzahl und System-Health live an.
+4. Über `/api/opnsense/block-ip` kann eine IP sofort in einen OPNsense-Alias gesperrt werden.
 
-### 👥 Community & Collaboration
-
-- 📋 Issue Templates (Bug Reports, Security Reports, Feature Requests)
-- 📝 Standardisierte PR Templates
-- 🤝 Klare Contributing Guidelines
-- 📚 Vollständige Dokumentation (API-Docs, Setup Guides, Best Practices)
-- 🔄 Peer Review für alle Changes
-
-### 📊 Reporting & Analytics
-
-- 📈 Daily Security Reports (automated Email/Slack)
-- 🎯 Compliance Reports (GDPR, HIPAA, PCI-DSS)
-- 📉 Trend Analysis der Vulnerability-Entwicklung
-- 🔍 Detaillierte Audit Logs (Wer, Was, Wann, Wo, Warum)
-- 📸 Point-in-Time Snapshots (State Versioning)
+Ohne gültige Zugangsdaten zeigt das Dashboard ehrlich "nicht konfiguriert" bzw. den echten Verbindungsfehler an – es wird nichts vorgetäuscht.
 
 ---
 
@@ -121,130 +89,86 @@ cd Servnix
 chmod +x scripts/*.sh
 ```
 
-**2. Abhängigkeiten installieren**
-```bash
-./scripts/install-dependencies.sh
-# oder manuell:
-npm install
-pip install -r requirements.txt
-```
-
-**3. System validieren**
+**2. System validieren & Abhängigkeiten installieren**
 ```bash
 ./scripts/validate-system.sh
-```
-```
-✅ Node.js v18+ installed
-✅ Python 3.9+ installed
-✅ Docker installed and running
-✅ Git configured
-✅ GitHub CLI authenticated
-✅ All system checks passed!
+./scripts/install-dependencies.sh   # installiert u.a. nftables + fail2ban
 ```
 
-**4. Umgebung konfigurieren**
+**3. Konfigurieren**
 ```bash
 cp .env.example .env
 nano .env
 ```
-```env
-# GitHub
-GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-GITHUB_OWNER=nick-rift
-GITHUB_REPO=Servnix
-
-# Security
-SLACK_WEBHOOK_URL=https://hooks.slack.com/...
-ALERT_EMAIL=admin@example.com
-
-# Scanning
-ENABLE_FIREWALL_SCAN=true
-ENABLE_SSL_AUDIT=true
-ENABLE_OWASP_SCAN=true
-ENABLE_KERNEL_SCAN=true
-
-# Update Behavior
-AUTO_MERGE_MINOR=true
-AUTO_MERGE_PATCH=true
-AUTO_MERGE_MAJOR=false
+Wichtig: Setze ein Dashboard-Passwort, sonst ist das Dashboard ungeschützt erreichbar:
+```bash
+node server/cli-hash-password.js "DeinSicheresPasswort"
+# Ergebnis in .env als DASHBOARD_PASSWORD_HASH eintragen
 ```
 
-**5. GitHub Actions aktivieren**
-1. `Settings → Actions` → "Allow all actions and reusable workflows"
-2. `Secrets and variables → Actions` → hinzufügen:
-   - `GITHUB_TOKEN`
-   - `SLACK_WEBHOOK_URL`
-   - `ALERT_EMAIL`
+**4. Eigene Firewall einrichten (optional, empfohlen)**
+```bash
+sudo ./scripts/servnix-firewall.sh install
+```
 
-**6. Erste Sicherheitsprüfung ausführen**
+**5. Dashboard starten**
+```bash
+npm install
+npm start
+```
+Dashboard läuft dann unter `http://<dein-server>:3000` (Login mit `DASHBOARD_USER` + dem gesetzten Passwort).
+
+**6. Ersten Scan ausführen**
 ```bash
 ./scripts/security-scan.sh
-```
-```
-🔍 Starting Security Audit...
-
-[Network Security]
-✅ Firewall: Enabled (UFW)
-✅ Open Ports: 22 (SSH), 80 (HTTP), 443 (HTTPS)
-✅ SSL/TLS Grade: A+
-✅ DDoS Protection: Enabled
-
-[Application Security]
-✅ npm audit: 0 vulnerabilities
-✅ Docker scan: 0 HIGH, 2 MEDIUM
-✅ SAST Analysis: 0 critical issues
-
-[System Security]
-✅ Kernel CVEs: 0 open
-✅ File Integrity: OK
-✅ Unauthorized Users: 0
-
-[Compliance]
-✅ CIS Benchmark: Level 2
-✅ GDPR Compliance: 95%
-
-📊 Overall Security Score: 9.2/10
+# oder direkt im Dashboard auf "Scan jetzt ausführen" klicken
 ```
 
 ---
 
-## 📋 Automatisierte Workflows
+## 📊 Das Dashboard
 
-**Daily Routine** (2:00 AM UTC): Dependency Audit → Security Scan → Testing → Reporting
+Kein Mockup – ein reales, per Express ausgeliefertes Web-Interface (`public/`), das ausschließlich die eigene API konsumiert:
 
-**Weekly Deep Scan** (Montags, 3:00 AM UTC): Full System Audit → Web Security → Compliance Check → Report & Archive
+- **Security-Score** mit nachvollziehbarer Punkteliste (was genau fehlt und warum)
+- **Firewall-Status** (Servnix-nftables + ufw), Port-Übersicht, DDoS-Härtung, fail2ban-Jails
+- **TLS/SSL-Status** mit echtem Ablaufdatum und Protokoll
+- **HTTP-Security-Header-Check**
+- **Dependency-Audit** (npm/pip)
+- **OPNsense-Kachel** mit Live-Verbindungsstatus
+- **Firewall-Steuerung** (install/enable/disable/status per Klick)
 
-**On-Demand:**
-```bash
-./scripts/emergency-security-scan.sh       # Notfall-Scan
-./scripts/scan-vulnerability.sh <CVE_ID>   # Spezifischer CVE-Scan
-./scripts/audit-firewall.sh                # Firewall Audit
-./scripts/check-compliance.sh              # Compliance Check
-```
-
----
-
-## 🔐 Security Best Practices
-
-| ✅ DO | ❌ DON'T |
-|-------|----------|
-| Regelmäßig `security-scan.sh` ausführen | `.env` oder Secrets committen |
-| Tägliche Reports checken | Security Alerts ignorieren |
-| Updates zuerst auf Staging testen | Schwache Passwörter nutzen |
-| Alte Reports archivieren | Auto-Updates deaktivieren |
-| Doku aktuell halten | Credentials im Code speichern |
-| 2FA für alle Accounts | Unnötige Ports öffnen |
-| API Keys regelmäßig rotieren | Veraltete TLS Versionen nutzen |
+Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ein neuer Voll-Scan wird per Button oder `POST /api/scan` ausgelöst.
 
 ---
 
-## 📊 Monitoring Dashboard
+## 🔐 Sicherheits-Realitätscheck
+
+| ✅ Was stimmt | ❌ Was Servnix NICHT ersetzt |
+|---|---|
+| Echte, live geprüfte Firewall-/TLS-/Header-/Dependency-Daten | Ein zertifiziertes Pentest oder einen Security-Audit durch Dritte |
+| Eine funktionierende, eigenständige nftables-Firewall | WAF-Schutz auf Layer 7 gegen komplexe Angriffe |
+| Echte OPNsense-API-Anbindung (Basic Auth mit Key/Secret) | Enterprise-DDoS-Schutz auf Netzwerkebene (dafür brauchst du einen Provider wie Cloudflare/OPNsense mit ausreichend Bandbreite) |
+| Ein Score, dessen Berechnung offen im Code liegt | Eine Garantie für "100% sicher" – das gibt es nicht |
+
+---
+
+## 📋 API-Endpunkte
 
 ```
-http://localhost:3000/dashboard
+GET  /api/health                    Health-Check
+GET  /api/scan/latest               letzten gespeicherten Scan abrufen
+POST /api/scan                      neuen Voll-Scan ausführen
+GET  /api/firewall/status           Firewall-Rohdaten
+POST /api/firewall/servnix/:action  install | enable | disable | status
+GET  /api/opnsense/config           Konfigurationsstatus (ohne Secrets)
+GET  /api/opnsense/test             Verbindungstest
+GET  /api/opnsense/rules            Firewall-Regeln von OPNsense
+GET  /api/opnsense/health           System-Health von OPNsense
+POST /api/opnsense/block-ip         IP per OPNsense-Alias sperren
 ```
 
-Real-time Security Score · Vulnerability Trends · Update Status · Firewall Activity · SSL/TLS Status · Compliance Scorecard · Alert History · Audit Trails
+Alle Endpunkte sind durch HTTP Basic Auth geschützt, sobald `DASHBOARD_PASSWORD_HASH` gesetzt ist.
 
 ---
 
@@ -252,13 +176,9 @@ Real-time Security Score · Vulnerability Trends · Update Status · Firewall Ac
 
 | Datei | Inhalt |
 |-------|--------|
-| [INSTALLATION.md](docs/INSTALLATION.md) | Step-by-Step Setup Guide |
-| [CONTRIBUTING.md](docs/CONTRIBUTING.md) | Wie man mithelfen kann |
-| [SECURITY.md](docs/SECURITY.md) | Security Policies & Disclosures |
-| [API.md](docs/API.md) | API Dokumentation |
-| [COMPLIANCE.md](docs/COMPLIANCE.md) | GDPR, HIPAA, PCI-DSS Info |
-| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Häufige Fehler & Lösungen |
-| [FAQ.md](docs/FAQ.md) | Häufig gestellte Fragen |
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Ausführlicher Setup-Guide inkl. sudo-Rechte fürs Firewall-Script |
+| [docs/SECURITY.md](docs/SECURITY.md) | Was Servnix prüft, was nicht, wie man Findings meldet |
+| [docs/API.md](docs/API.md) | Vollständige API-Referenz |
 
 ---
 
@@ -272,32 +192,12 @@ Real-time Security Score · Vulnerability Trends · Update Status · Firewall Ac
 5. Open a Pull Request
 ```
 
-Details in [CONTRIBUTING.md](docs/CONTRIBUTING.md).
-
 ---
 
 <div align="center">
 
-## 📈 Status & Metrics
-
-| System | Status |
-|--------|--------|
-| **Dependencies** | ✅ Up-to-date |
-| **Security Scan** | ✅ Passed |
-| **Firewall** | ✅ Secure |
-| **SSL/TLS** | ✅ Grade A+ |
-| **Compliance** | ✅ 95%+ |
-| **System Health** | ✅ Optimal |
-
-### 📱 Follow the Journey
-
-[![TikTok](https://img.shields.io/badge/TikTok-@nick.rift-000000?style=for-the-badge&logo=tiktok&logoColor=white)](https://www.tiktok.com/@nick.rift)
-[![Instagram](https://img.shields.io/badge/Instagram-@nick.rift-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/nick.rift)
-
 📜 Lizenz: [LGPL 2.1](LICENSE)
 
-**Made with 🛡️ for Server Security & Automation**
-
-*Kein Support. Keine Mitleid. Nur Sicherheit.*
+**Made with 🛡️ für echte Server-Sicherheit – ohne Bullshit.**
 
 </div>

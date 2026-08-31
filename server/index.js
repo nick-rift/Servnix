@@ -1,0 +1,120 @@
+'use strict';
+
+require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
+const express = require('express');
+
+const { runFullScan } = require('./lib/runScan');
+const { basicAuthMiddleware } = require('./lib/auth');
+const opnsense = require('./lib/opnsense');
+const { run } = require('./lib/exec');
+
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const LATEST_SCAN_FILE = path.join(DATA_DIR, 'latest-scan.json');
+
+if (!process.env.DASHBOARD_PASSWORD_HASH) {
+  console.warn(
+    '⚠️  Kein DASHBOARD_PASSWORD_HASH gesetzt - das Dashboard ist ungeschuetzt erreichbar!\n' +
+    '   Passwort setzen mit: node server/cli-hash-password.js "DeinPasswort"',
+  );
+}
+
+app.use(basicAuthMiddleware());
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+let scanInProgress = false;
+
+async function performScan(options) {
+  scanInProgress = true;
+  try {
+    const result = await runFullScan(options);
+    fs.writeFileSync(LATEST_SCAN_FILE, JSON.stringify(result, null, 2));
+    return result;
+  } finally {
+    scanInProgress = false;
+  }
+}
+
+// --- API: Scans ---
+
+app.get('/api/scan/latest', (req, res) => {
+  if (fs.existsSync(LATEST_SCAN_FILE)) {
+    res.json(JSON.parse(fs.readFileSync(LATEST_SCAN_FILE, 'utf8')));
+  } else {
+    res.status(404).json({ error: 'Noch kein Scan durchgefuehrt. POST /api/scan ausloesen.' });
+  }
+});
+
+app.post('/api/scan', async (req, res) => {
+  if (scanInProgress) {
+    return res.status(409).json({ error: 'Ein Scan laeuft bereits' });
+  }
+  try {
+    const result = await performScan(req.body || {});
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- API: Servnix-Firewall Steuerung ---
+
+app.get('/api/firewall/status', async (req, res) => {
+  const { scanFirewall } = require('./lib/firewall');
+  res.json(await scanFirewall());
+});
+
+app.post('/api/firewall/servnix/:action', async (req, res) => {
+  const action = req.params.action;
+  const allowed = ['install', 'enable', 'disable', 'status'];
+  if (!allowed.includes(action)) {
+    return res.status(400).json({ error: `Unbekannte Aktion. Erlaubt: ${allowed.join(', ')}` });
+  }
+  const scriptPath = path.join(__dirname, '..', 'scripts', 'servnix-firewall.sh');
+  const result = await run('sudo', [scriptPath, action], { timeout: 30000 });
+  res.json({
+    action,
+    ok: result.ok,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    note: result.available ? undefined : 'sudo/Script nicht ausfuehrbar - lokal ggf. ohne sudo-Rechte',
+  });
+});
+
+// --- API: OPNsense ---
+
+app.get('/api/opnsense/config', (req, res) => {
+  const cfg = opnsense.loadConfig();
+  res.json({ configured: opnsense.isConfigured(cfg), host: cfg.host });
+});
+
+app.get('/api/opnsense/test', async (req, res) => {
+  res.json(await opnsense.testConnection());
+});
+
+app.get('/api/opnsense/rules', async (req, res) => {
+  res.json(await opnsense.getFirewallRules());
+});
+
+app.get('/api/opnsense/health', async (req, res) => {
+  res.json(await opnsense.getSystemHealth());
+});
+
+app.post('/api/opnsense/block-ip', async (req, res) => {
+  const { ip } = req.body || {};
+  if (!ip) return res.status(400).json({ error: 'ip fehlt im Body' });
+  res.json(await opnsense.blockIpViaAlias(ip));
+});
+
+app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+app.listen(PORT, () => {
+  console.log(`Servnix Dashboard laeuft auf http://localhost:${PORT}`);
+  console.log('Ersten Scan ausloesen mit: curl -X POST http://localhost:' + PORT + '/api/scan');
+});
