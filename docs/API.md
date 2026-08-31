@@ -19,12 +19,14 @@ Anfragen, siehe `GET /api/hardening/status`).
 Letzten gespeicherten Scan-Report zurückgeben. `404`, wenn noch kein Scan gelaufen ist.
 
 ### `POST /api/scan`
-Führt einen vollständigen Scan aus (Firewall, TLS, Header, Dependencies, System) und speichert
-ihn als neuesten Stand. Body optional:
+Führt einen vollständigen Scan aus (Firewall, TLS, Header, Website-Sicherheit, Dependencies,
+System) und speichert ihn als neuesten Stand. Body optional:
 ```json
 { "sslHost": "meine-domain.de", "targetUrl": "https://meine-domain.de" }
 ```
-Antwort: vollständiges Scan-Objekt inkl. `score`.
+Antwort: vollständiges Scan-Objekt inkl. `score` und `webVulnerabilities` (öffentlich erreichbare
+sensible Dateien, gefährliche HTTP-Methoden, CORS-Fehlkonfiguration, Directory-Listing,
+Versions-Banner).
 
 ## Firewall
 

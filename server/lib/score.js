@@ -103,13 +103,41 @@ function scoreSystem(system) {
   return { points: Math.max(0, points), max, findings };
 }
 
-function computeScore({ firewall, ssl, headers, dependencies, system }) {
+function scoreWeb(web) {
+  const findings = [];
+  const max = 15;
+  if (!web || !web.reachable) {
+    findings.push('Website nicht erreichbar - Web-Schwachstellen-Check konnte nicht laufen');
+    return { points: 0, max, findings };
+  }
+  let points = max;
+  if (web.exposedFiles && web.exposedFiles.length > 0) {
+    points -= 8;
+  }
+  if (web.methods && web.methods.dangerous && web.methods.dangerous.length > 0) {
+    points -= 3;
+  }
+  if (web.cors && web.cors.wildcardWithCredentials) {
+    points -= 2;
+  }
+  if (web.directoryListing) {
+    points -= 3;
+  }
+  if (web.banner && web.banner.versionLeak) {
+    points -= 1;
+  }
+  if (web.findings) findings.push(...web.findings);
+  return { points: Math.max(0, points), max, findings };
+}
+
+function computeScore({ firewall, ssl, headers, dependencies, system, webVulnerabilities }) {
   const parts = {
     firewall: scoreFirewall(firewall || {}),
     ssl: scoreSsl(ssl),
     headers: scoreHeaders(headers),
     dependencies: scoreDependencies(dependencies || {}),
     system: scoreSystem(system || {}),
+    web: scoreWeb(webVulnerabilities),
   };
   const totalPoints = Object.values(parts).reduce((sum, p) => sum + p.points, 0);
   const totalMax = Object.values(parts).reduce((sum, p) => sum + p.max, 0);

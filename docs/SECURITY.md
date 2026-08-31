@@ -11,6 +11,11 @@ Servnix führt bei jedem Scan echte, live ausgeführte Checks aus (siehe `server
 - HTTP-Security-Header (HSTS, CSP, X-Frame-Options, ...)
 - npm-/Python-Dependency-Vulnerabilities
 - Kernel-/OS-Version, UID-0-Accounts
+- **Website-Schwachstellen** (`server/lib/webVulnScan.js`): öffentlich erreichbare sensible
+  Dateien (`.env`, `.git/config`, Backups, ...), gefährliche erlaubte HTTP-Methoden
+  (`TRACE`/`PUT`/`DELETE`), CORS-Fehlkonfiguration (`*` + Credentials), Directory-Listing,
+  preisgegebene Server-/Versionsbanner – echte aktive Checks gegen den konfigurierten
+  `SCAN_TARGET_URL`, keine geratenen Werte.
 
 Zusätzlich läuft optional der **Servnix Guard** (`server/guard.js`) als eigener Dauerprozess und
 wertet echte Logs kontinuierlich aus:
@@ -18,10 +23,16 @@ wertet echte Logs kontinuierlich aus:
 - SSH-Login-Fehlversuche (`journalctl`/`auth.log`) pro Quell-IP
 - Portscan-Muster im nftables-Kernel-Log (verschiedene angefragte Ports pro Quell-IP)
 - Veränderungen am USB-Geräte-Bestand (`lsusb`-Diff)
+- **Web-Angriffsmuster** (`server/lib/webAttackDetection.js`) im echten nginx-/apache-Access-Log:
+  Exploit-Sondierung sensibler Pfade (`.env`, `.git`, `wp-login.php`, `phpMyAdmin`, ...),
+  SQL-Injection-/XSS-/Path-Traversal-Muster in der Request-Zeile, bekannte Scanner-Tool-User-Agents
+  (`sqlmap`, `nikto`, `nmap`, ...)
 
 Bei Überschreiten der konfigurierten Schwellenwerte wird die IP automatisch in die
 nftables-Menge `blackhole_v4` eingetragen – das betrifft sofort den **gesamten** Server-Traffic
-dieser IP (Dashboard, SSH, Webserver auf 80/443, alles), nicht nur das Dashboard selbst.
+dieser IP (Dashboard, SSH, Webserver auf 80/443, alles), nicht nur das Dashboard oder die
+betroffene Webseite selbst. Wer also versucht, eine Website auf dem Server anzugreifen, verliert
+den Zugriff auf den kompletten Server, nicht nur auf die Website.
 
 Zusätzlich ist die Dashboard-App selbst gehärtet (App-Ebene, unabhängig von nftables/OPNsense):
 
@@ -60,12 +71,25 @@ Jeder Check kann fehlschlagen oder ein Tool kann fehlen – in dem Fall wird das
   Dieser Schutz greift also vor allem bei einer bewussten `HOST`-Änderung (z. B. eigener
   Reverse-Proxy mit echten Client-IPs). Für den SSH-Zugang selbst sorgt weiterhin der Servnix
   Guard bzw. `fail2ban` für den eigentlichen Bruteforce-Schutz.
+- **Die Web-Angriffserkennung findet nur, was im Access-Log als Angriffsmuster auftaucht.**
+  Sie erkennt bekannte, sich wiederholende Sondierungs-/Exploit-Versuche (Regex-Muster,
+  keine ML-Anomalieerkennung) – ein einzelner, gezielter Angriff ohne wiederholte Muster
+  oder ein komplett neues, unbekanntes Angriffsmuster fällt nicht automatisch auf. Die
+  Erkennung braucht außerdem ein Standard-"combined"-Access-Log (siehe
+  `templates/nginx-hardened.conf.example`) – ohne konfiguriertes `WEBGUARD_ACCESS_LOGS` läuft
+  sie leer.
+- **`server/lib/webVulnScan.js` prüft eine feste Liste bekannter Fehlkonfigurationen**, keine
+  beliebige Anwendungslogik. Eigene, anwendungsspezifische Schwachstellen (z. B. eine falsch
+  programmierte Login-Funktion) findet dieser Check nicht – dafür braucht es einen echten
+  Pentest oder ein spezialisiertes Tool wie OWASP ZAP/Burp Suite.
 - **Es gibt keine Software, die "100% sicher gegen alle Cyberangriffe" macht** – das ist als
   Versprechen technisch nicht haltbar (Zero-Day-Lücken in Betriebssystem/Kernel/eingesetzter
   Software lassen sich durch keine Konfiguration ausschließen). Servnix reduziert real und
   nachvollziehbar die häufigsten Angriffsvektoren (offene Ports, schwache TLS-Konfiguration,
-  fehlende Security-Header, Bruteforce, Portscans, bekannte Dependency-CVEs) – das ist der
-  ehrliche Anspruch, nicht mehr und nicht weniger.
+  fehlende Security-Header, Bruteforce, Portscans, bekannte Dependency-CVEs, bekannte
+  Web-Exploit-Sondierung) – das ist der ehrliche Anspruch, nicht mehr und nicht weniger. Jeder,
+  der "Schutz gegen jeden Cyberangriff, der jemals existieren wird" verspricht, lügt – auch
+  Servnix nicht.
 - **Keine Zertifizierung** für CIS/HIPAA/GDPR/PCI-DSS. Die Checks orientieren sich an
   gängigen Best Practices, ersetzen aber keinen formalen Audit.
 
@@ -86,6 +110,10 @@ kontaktiere den Maintainer direkt über die im Profil hinterlegten Kanäle.
 - Regelmäßig `./scripts/security-scan.sh` laufen lassen und die "Offenen Punkte" abarbeiten.
 - Vor dem Aktivieren des Servnix Guards **immer** die eigene IP in `GUARD_ALLOWLIST` eintragen,
   sonst droht Selbstaussperrung bei zu vielen eigenen Fehlversuchen.
+- Für eigene Webseiten/Webanwendungen die gehärtete Vorlage `templates/nginx-hardened.conf.example`
+  als Basis für die nginx-Konfiguration nutzen (Security-Header, gesperrte Exploit-Pfade,
+  Rate-Limiting, kein Directory-Listing) – und `WEBGUARD_ACCESS_LOGS` auf das jeweilige
+  Access-Log zeigen lassen, damit der Servnix Guard Angriffe darauf tatsächlich erkennt.
 - Node.js-Prozess nach Möglichkeit als eigener, unprivilegierter Systemuser laufen lassen (nicht
   als root) – nur der Servnix Guard und die Firewall-Scripts selbst brauchen root/sudo, nicht
   das Dashboard.
