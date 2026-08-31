@@ -7,6 +7,11 @@
 #   - Stateful Filtering (nur Antworten auf eigene/etablierte Verbindungen erlaubt)
 #   - SYN-Flood-/DDoS-Rate-Limiting auf neue Verbindungen und ICMP
 #   - Port-Scan-Erkennung (haeufige TCP-Flag-Kombinationen von Scannern werden verworfen)
+#   - Scan-Logging fuer den Servnix-Guard (server/guard.js): alle neuen
+#     Verbindungsversuche auf nicht erlaubten Ports werden geloggt, damit
+#     Angreifer-IPs automatisch erkannt und in "blackhole_v4" gesperrt werden
+#   - Blockliste (Set "blackhole_v4"): IPs, die der Servnix-Guard oder das
+#     Dashboard manuell sperrt, landen hier und werden am INPUT sofort verworfen
 #   - Nur SSH/HTTP/HTTPS standardmaessig offen, alles andere per SERVNIX_ALLOW_PORTS steuerbar
 #
 # Nutzung:
@@ -79,6 +84,13 @@ table inet ${TABLE} {
 
         # Neue Verbindungen auf erlaubten Ports, aber global rate-limitiert (SYN-Flood-Schutz)
         tcp dport ${ports_set} ct state new limit rate 200/second burst 50 packets accept
+
+        # Alle uebrigen neuen Verbindungsversuche (auf NICHT erlaubten Ports) mit
+        # Quell-/Zielinformationen ins Kernel-Log schreiben, bevor sie verworfen
+        # werden. Der Servnix-Guard (server/guard.js) liest genau dieses Log aus,
+        # um Portscans zu erkennen: viele verschiedene Zielports von derselben
+        # Quell-IP in kurzer Zeit = automatische Sperrung.
+        ct state new log prefix "servnix-scan-attempt: " flags all drop comment "logged-scan-attempt"
 
         counter comment "dropped-by-default-deny"
     }

@@ -1,38 +1,54 @@
-<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background Dark -->
-  <rect width="200" height="200" fill="#0f172a"/>
-  
-  <!-- Shield with rounded corners -->
-  <path d="M 100 20 L 160 50 L 160 110 C 160 150 100 180 100 180 C 100 180 40 150 40 110 L 40 50 Z" 
-        fill="#3b82f6" stroke="#60a5fa" stroke-width="2"/>
-  
-  <!-- Shield inner glow -->
-  <path d="M 100 20 L 160 50 L 160 110 C 160 150 100 180 100 180 C 100 180 40 150 40 110 L 40 50 Z" 
-        fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.4"/>
-  
-  <!-- Lock symbol inside shield -->
-  <g transform="translate(100, 95)">
-    <!-- Lock body -->
-    <rect x="-20" y="-5" width="40" height="35" rx="4" fill="#10b981" stroke="#6ee7b7" stroke-width="1.5"/>
-    
-    <!-- Lock shackle (top arc) -->
-    <path d="M -15 -5 Q -15 -30 0 -30 Q 15 -30 15 -5" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
-    
-    <!-- Keyhole -->
-    <circle cx="0" cy="5" r="3" fill="#0f172a"/>
-    <rect x="-2" y="8" width="4" height="8" fill="#0f172a"/>
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shieldFillDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#16202b"/>
+      <stop offset="100%" stop-color="#0b0f14"/>
+    </linearGradient>
+    <linearGradient id="accentGradDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5cf0b2"/>
+      <stop offset="100%" stop-color="#22b573"/>
+    </linearGradient>
+    <filter id="glowDark" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Hexagon shield outline -->
+  <path d="M120 16 L204 60 L204 148 C204 190 120 224 120 224 C120 224 36 190 36 148 L36 60 Z"
+        fill="url(#shieldFillDark)" stroke="url(#accentGradDark)" stroke-width="3"/>
+
+  <!-- inner circuit ring -->
+  <path d="M120 34 L188 70 L188 146 C188 180 120 206 120 206 C120 206 52 180 52 146 L52 70 Z"
+        fill="none" stroke="#22b573" stroke-width="1" opacity="0.35"/>
+
+  <!-- Circuit traces -->
+  <g stroke="#3ddc97" stroke-width="2" fill="none" opacity="0.55" stroke-linecap="round">
+    <path d="M36 92 L58 92 L58 78"/>
+    <path d="M204 92 L182 92 L182 78"/>
+    <path d="M36 168 L58 168 L58 182"/>
+    <path d="M204 168 L182 168 L182 182"/>
+    <circle cx="58" cy="78" r="3" fill="#3ddc97" stroke="none"/>
+    <circle cx="182" cy="78" r="3" fill="#3ddc97" stroke="none"/>
+    <circle cx="58" cy="182" r="3" fill="#3ddc97" stroke="none"/>
+    <circle cx="182" cy="182" r="3" fill="#3ddc97" stroke="none"/>
   </g>
-  
-  <!-- Top accent dots (representing security scanning) -->
-  <circle cx="50" cy="40" r="3" fill="#06b6d4" opacity="0.9"/>
-  <circle cx="70" cy="35" r="2.5" fill="#06b6d4" opacity="0.7"/>
-  <circle cx="130" cy="40" r="3" fill="#06b6d4" opacity="0.9"/>
-  <circle cx="150" cy="35" r="2.5" fill="#06b6d4" opacity="0.7"/>
-  
-  <!-- Bottom accent line (representing updates) -->
-  <line x1="40" y1="165" x2="160" y2="165" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
-  
-  <!-- Text: SERVNIX -->
-  <text x="100" y="195" font-family="Arial, sans-serif" font-size="14" font-weight="bold" 
-        fill="#93c5fd" text-anchor="middle" letter-spacing="2">SERVNIX</text>
+
+  <!-- Lock, centered -->
+  <g transform="translate(120, 128)" filter="url(#glowDark)">
+    <path d="M -20 -8 Q -20 -34 0 -34 Q 20 -34 20 -8" fill="none" stroke="url(#accentGradDark)" stroke-width="6" stroke-linecap="round"/>
+    <rect x="-26" y="-8" width="52" height="42" rx="8" fill="url(#accentGradDark)"/>
+    <circle cx="0" cy="8" r="5" fill="#06231a"/>
+    <rect x="-3" y="11" width="6" height="12" rx="2" fill="#06231a"/>
+  </g>
+
+  <!-- Signal / scan bars, bottom -->
+  <g fill="#3ddc97">
+    <rect x="102" y="198" width="6" height="10" rx="1" opacity="0.9"/>
+    <rect x="114" y="192" width="6" height="16" rx="1" opacity="0.75"/>
+    <rect x="126" y="196" width="6" height="12" rx="1" opacity="0.9"/>
+  </g>
 </svg>

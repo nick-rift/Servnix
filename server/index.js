@@ -9,6 +9,7 @@ const { runFullScan } = require('./lib/runScan');
 const { basicAuthMiddleware } = require('./lib/auth');
 const opnsense = require('./lib/opnsense');
 const { run } = require('./lib/exec');
+const blocklist = require('./lib/blocklist');
 
 const app = express();
 app.use(express.json());
@@ -30,6 +31,16 @@ if (!process.env.DASHBOARD_PASSWORD_HASH) {
     '   Passwort setzen mit: node server/cli-hash-password.js "DeinPasswort"',
   );
 }
+
+// Gesperrte IPs werden schon hier abgewiesen (vor Auth/Statics) - so sieht ein
+// bereits gesperrter Angreifer noch nicht mal die Login-Abfrage.
+app.use((req, res, next) => {
+  const ip = blocklist.normalizeIp(req.socket.remoteAddress);
+  if (blocklist.isBlocked(ip)) {
+    return res.status(403).json({ error: 'Diese IP-Adresse wurde vom Servnix Guard gesperrt.' });
+  }
+  next();
+});
 
 app.use(basicAuthMiddleware());
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -119,6 +130,31 @@ app.post('/api/opnsense/block-ip', async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+// --- API: Servnix Guard (Blockliste + Security-Events) ---
+
+app.get('/api/blocklist', (req, res) => {
+  res.json(blocklist.listBlocked());
+});
+
+app.post('/api/blocklist', async (req, res) => {
+  const { ip, reason } = req.body || {};
+  if (!ip) return res.status(400).json({ error: 'ip fehlt im Body' });
+  const result = await blocklist.blockIp(ip, reason || 'Manuell ueber Dashboard gesperrt', 'manual');
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.delete('/api/blocklist/:ip', async (req, res) => {
+  const result = await blocklist.unblockIp(req.params.ip);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.get('/api/security-events', (req, res) => {
+  const limit = Number(req.query.limit) || 100;
+  res.json(blocklist.listEvents(limit));
+});
 
 app.listen(PORT, HOST, () => {
   console.log(`Servnix Dashboard laeuft auf http://${HOST}:${PORT}`);

@@ -39,6 +39,7 @@ Was Servnix **nicht** ist: ein fertiges SOC, ein Pentest-Tool oder eine Complian
 | **Dependency-Audit** | npm-Vulnerabilities, Python-Vulnerabilities | `npm audit`, `pip-audit` |
 | **System** | Kernel-Version, OS, UID-0-Accounts, letzte Logins | `uname`, `/etc/passwd`, `last` |
 | **OPNsense** | Verbindungstest, Firewall-Regeln, System-Health, IP blocken | OPNsense REST API |
+| **Guard** | SSH-Bruteforce- & Portscan-Erkennung, automatische IP-Sperrung, USB-Geräte-Alarm | `journalctl`, nftables-Log, `lsusb` |
 
 Aus allen Checks wird ein **nachvollziehbarer Security-Score** berechnet (`server/lib/score.js`) – jede Regel steht im Code, nichts wird geraten.
 
@@ -64,6 +65,59 @@ sudo ./scripts/servnix-firewall.sh disable   # nur im Notfall - Server ist danac
 Anpassbar über Umgebungsvariablen: `SERVNIX_ALLOW_TCP_PORTS="22,80,443"`, `SERVNIX_SSH_PORT="22"`.
 
 Das Dashboard kann `install` / `enable` / `disable` / `status` auch per Button auslösen (Server braucht dafür passwortlose `sudo`-Rechte für genau dieses Script – siehe [docs/INSTALLATION.md](docs/INSTALLATION.md)).
+
+---
+
+## 🛡️ Servnix Guard – automatische Angriffserkennung & IP-Sperrung
+
+**Wichtig für Ehrlichkeit:** Das ist **keine "KI"** im Sinne von Machine Learning – es ist
+regelbasierte, transparente Schwellenwert-Erkennung auf echten Log-Daten. Jede Regel steht
+im Code (`server/lib/intrusionDetection.js`), nichts ist eine Blackbox.
+
+Was der Guard (`server/guard.js`) tatsächlich tut:
+
+- **SSH-Bruteforce-Erkennung** – liest `journalctl`/`auth.log` und zählt fehlgeschlagene Logins
+  pro IP. Ab `GUARD_SSH_MAX_FAILURES` (Standard: 8) in `GUARD_SSH_WINDOW_MINUTES` (Standard: 10)
+  wird die IP automatisch gesperrt.
+- **Portscan-Erkennung** – liest das Kernel-Log der Servnix-Firewall (Präfix
+  `servnix-scan-attempt:`) und zählt verschiedene angefragte Ports pro IP. Ab
+  `GUARD_PORTSCAN_MAX_PORTS` (Standard: 15) in `GUARD_PORTSCAN_WINDOW_MINUTES` (Standard: 5)
+  wird die IP automatisch gesperrt.
+- **USB-Geräte-Überwachung** – vergleicht `lsusb`-Ausgabe mit dem letzten bekannten Stand und
+  meldet neu angeschlossene Geräte als Security-Event. **Das ist reine Erkennung/Alarmierung,
+  kein automatisches Sperren von USB-Ports** – Software kann ein bereits physisch eingestecktes
+  Gerät ohne zusätzliche Kernel-Policies (z. B. `usbguard`) nicht seriös blocken.
+
+Eine gesperrte IP landet in der nftables-Menge `blackhole_v4` (siehe Servnix-Firewall oben) –
+das blockt **den gesamten Server-Traffic dieser IP**, nicht nur das Dashboard. Wer also per SSH
+brute-forced oder einen Portscan gegen den Webserver auf Port 80/443 fährt, wird komplett
+ausgesperrt, inklusive Zugriff auf jede andere Webseite/jeden anderen Dienst auf demselben
+Server. Ist zusätzlich OPNsense konfiguriert, wird die IP auch dort in den Alias eingetragen.
+
+```bash
+# Voraussetzung: Servnix-Firewall muss installiert sein (liefert das Scan-Log)
+sudo ./scripts/servnix-firewall.sh install
+
+# Eigene IP in .env eintragen, damit du dich nicht selbst aussperrst!
+# GUARD_ALLOWLIST=<deine-eigene-ip>
+
+# Guard als systemd-Dienst installieren (läuft dauerhaft, übersteht Reboots)
+sudo ./scripts/servnix-guard.sh install
+sudo ./scripts/servnix-guard.sh status
+sudo journalctl -u servnix-guard -f     # Live-Logs
+
+# Einmaliger Testlauf ohne root/systemd (zeigt nur an, sperrt nur bei echtem Treffer)
+./scripts/servnix-guard.sh test
+```
+
+Alle Sperrungen, Entsperrungen und USB-Erkennungen werden protokolliert
+(`server/data/security-events.log`) und sind im Dashboard unter **"Servnix Guard · Blockliste"**
+und **"Security-Events"** einsehbar. Manuelles Sperren/Entsperren einer IP ist dort ebenfalls
+per Klick möglich.
+
+⚠️ Ein Entsperren aus einem OPNsense-Alias ist **nicht automatisiert** – dafür müsste die
+Alias-Item-UUID aufgelöst werden. Wurde eine IP über OPNsense gesperrt, muss sie dort manuell
+aus dem Alias entfernt werden.
 
 ---
 
@@ -109,6 +163,12 @@ node server/cli-hash-password.js "DeinSicheresPasswort"
 **4. Eigene Firewall einrichten (optional, empfohlen)**
 ```bash
 sudo ./scripts/servnix-firewall.sh install
+```
+
+**4a. Servnix Guard einrichten (optional, empfohlen)**
+```bash
+# Eigene IP in .env unter GUARD_ALLOWLIST eintragen, sonst droht Selbstaussperrung!
+sudo ./scripts/servnix-guard.sh install
 ```
 
 **5. Dashboard starten**
@@ -180,6 +240,8 @@ Kein Mockup – ein reales, per Express ausgeliefertes Web-Interface (`public/`)
 - **Dependency-Audit** (npm/pip)
 - **OPNsense-Kachel** mit Live-Verbindungsstatus
 - **Firewall-Steuerung** (install/enable/disable/status per Klick)
+- **Servnix Guard · Blockliste** – gesperrte IPs mit Grund/Quelle/Sync-Status, manuelles Sperren/Entsperren per Klick
+- **Security-Events** – Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geräte
 
 Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ein neuer Voll-Scan wird per Button oder `POST /api/scan` ausgelöst.
 
@@ -193,6 +255,8 @@ Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ei
 | Eine funktionierende, eigenständige nftables-Firewall | WAF-Schutz auf Layer 7 gegen komplexe Angriffe |
 | Echte OPNsense-API-Anbindung (Basic Auth mit Key/Secret) | Enterprise-DDoS-Schutz auf Netzwerkebene (dafür brauchst du einen Provider wie Cloudflare/OPNsense mit ausreichend Bandbreite) |
 | Ein Score, dessen Berechnung offen im Code liegt | Eine Garantie für "100% sicher" – das gibt es nicht |
+| Automatische IP-Sperrung bei echten SSH-Bruteforce-/Portscan-Mustern | "KI" im Sinne von Machine Learning – der Guard ist regelbasiert, keine Blackbox |
+| USB-Geräte-Erkennung & Alarmierung im Log | Physisches Blockieren eines USB-Geräts (dafür braucht es zusätzlich `usbguard`) |
 
 ---
 
@@ -209,6 +273,10 @@ GET  /api/opnsense/test             Verbindungstest
 GET  /api/opnsense/rules            Firewall-Regeln von OPNsense
 GET  /api/opnsense/health           System-Health von OPNsense
 POST /api/opnsense/block-ip         IP per OPNsense-Alias sperren
+GET  /api/blocklist                 aktuelle IP-Blockliste
+POST /api/blocklist                 IP manuell sperren ({ ip, reason })
+DELETE /api/blocklist/:ip           IP entsperren
+GET  /api/security-events           Protokoll aller Sperr-/Entsperr-/USB-Ereignisse
 ```
 
 Alle Endpunkte sind durch HTTP Basic Auth geschützt, sobald `DASHBOARD_PASSWORD_HASH` gesetzt ist.
