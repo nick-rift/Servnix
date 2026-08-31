@@ -127,6 +127,9 @@ main { padding: 24px; max-width: 1200px; margin: 0 auto; }
   font-size: 0.85rem;
 }
 
+.hidden { display: none; }
+.hint-spaced { margin-top: 8px; }
+
 .btn-row input[type="text"] {
   flex: 1;
   min-width: 200px;

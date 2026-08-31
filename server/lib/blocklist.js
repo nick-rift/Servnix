@@ -59,10 +59,31 @@ function isPrivateOrLoopback(ip) {
   );
 }
 
+const MAX_EVENTS_LOG_LINES = 5000;
+
 function logEvent(event) {
   ensureDataDir();
   const line = JSON.stringify({ timestamp: new Date().toISOString(), ...event });
   fs.appendFileSync(EVENTS_FILE, line + '\n');
+  rotateEventsLogIfNeeded();
+}
+
+/**
+ * Verhindert, dass ein Angreifer durch massenhaft ausgeloeste Events (z.B.
+ * wiederholte Scan-/Login-Versuche) die Festplatte mit einer endlos
+ * wachsenden Logdatei fuellt (Disk-Exhaustion-DoS). Kappt die Datei auf die
+ * letzten MAX_EVENTS_LOG_LINES Zeilen, sobald sie deutlich groesser wird.
+ */
+function rotateEventsLogIfNeeded() {
+  try {
+    const stat = fs.statSync(EVENTS_FILE);
+    if (stat.size < 10 * 1024 * 1024) return; // erst ab 10 MB rotieren
+    const lines = fs.readFileSync(EVENTS_FILE, 'utf8').split('\n').filter(Boolean);
+    const trimmed = lines.slice(-MAX_EVENTS_LOG_LINES);
+    fs.writeFileSync(EVENTS_FILE, trimmed.join('\n') + '\n');
+  } catch {
+    // best effort - Rotation darf niemals das eigentliche Logging zum Absturz bringen
+  }
 }
 
 function listEvents(limit = 100) {
@@ -108,6 +129,14 @@ async function syncNftUnblock(ip) {
   return { ok: res.ok, error: res.ok ? null : res.stderr || res.error };
 }
 
+function isAllowlisted(ip) {
+  const allowlist = (process.env.GUARD_ALLOWLIST || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return allowlist.includes(ip);
+}
+
 /**
  * Sperrt eine IP. Traegt sie in die App-Blockliste ein, versucht sie
  * zusaetzlich in die nftables-Firewall UND (falls konfiguriert) in OPNsense
@@ -121,6 +150,12 @@ async function blockIp(ip, reason, source = 'manual') {
   }
   if (isPrivateOrLoopback(normalized)) {
     return { ok: false, error: 'Private/Loopback-Adressen werden nicht gesperrt (Selbstaussperr-Schutz)' };
+  }
+  if (isAllowlisted(normalized)) {
+    // Zweite Verteidigungslinie: selbst wenn ein Aufrufer vergisst, die
+    // Allowlist selbst zu pruefen, wird eine als GUARD_ALLOWLIST markierte
+    // IP hier nie gesperrt (Selbstaussperr-Schutz fuer den/die Admin(s)).
+    return { ok: false, error: 'IP steht auf GUARD_ALLOWLIST und wird nicht gesperrt' };
   }
 
   const list = loadBlocklist();

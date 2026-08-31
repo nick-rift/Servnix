@@ -67,7 +67,7 @@
       <h2>🔗 OPNsense</h2>
       <div class="body">
         <p id="opnsenseStatus" class="muted">Prüfe Verbindung…</p>
-        <div id="opnsenseHint" class="hint" style="display:none">
+        <div id="opnsenseHint" class="hint hidden">
           <p>Noch nicht verbunden. Trage Host, API-Key und API-Secret in <code>.env</code> ein
           (unter <em>System → Access → Users → API Keys</em> in OPNsense erzeugen) und starte den Server neu.</p>
         </div>
@@ -86,6 +86,14 @@
           <button data-fw-action="status">Status</button>
         </div>
         <pre id="fwActionOutput" class="output"></pre>
+      </div>
+    </div>
+
+    <div class="card" id="card-hardening">
+      <h2>🔐 Dashboard-Härtung</h2>
+      <div class="body">
+        <p class="muted">Schutzmaßnahmen der Dashboard-App selbst, zusätzlich zur Netzwerk-Firewall.</p>
+        <div id="hardeningBody"><p class="muted">Lade Status…</p></div>
       </div>
     </div>
 

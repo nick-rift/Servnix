@@ -3,6 +3,8 @@
 Basis-URL: `http://127.0.0.1:3000` (Server bindet standardmäßig nur an localhost, siehe
 [INSTALLATION.md](INSTALLATION.md) für den SSH-Tunnel-Zugriff von einem entfernten PC aus).
 Alle Endpunkte sind per HTTP Basic Auth geschützt, sobald `DASHBOARD_PASSWORD_HASH` in `.env` gesetzt ist.
+Alle Endpunkte sind zusätzlich per App-Ebene-Rate-Limiting geschützt (`429` bei zu vielen
+Anfragen, siehe `GET /api/hardening/status`).
 
 ## Health
 
@@ -98,4 +100,20 @@ Protokoll aller Sperrungen (`block`), Entsperrungen (`unblock`) und erkannten US
   { "timestamp": "2025-01-01T12:00:00.000Z", "type": "block", "ip": "203.0.113.5", "reason": "...", "source": "guard-ssh", "nftSynced": true, "opnsenseSynced": false }
 ]
 ```
+
+## Dashboard-Härtung
+
+### `GET /api/hardening/status`
+Gibt den tatsächlich aktiven Schutzstatus der Dashboard-App zurück (keine Fake-Werte):
+```json
+{
+  "securityHeaders": true,
+  "dashboardAuth": true,
+  "loginBruteforceProtection": { "maxFailures": 5, "windowMinutes": 10 },
+  "rateLimiting": { "maxRequests": 120, "windowSeconds": 60 },
+  "guardAllowlistConfigured": true,
+  "hostBinding": "127.0.0.1"
+}
+```
+
 

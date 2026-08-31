@@ -23,6 +23,18 @@ Bei Überschreiten der konfigurierten Schwellenwerte wird die IP automatisch in 
 nftables-Menge `blackhole_v4` eingetragen – das betrifft sofort den **gesamten** Server-Traffic
 dieser IP (Dashboard, SSH, Webserver auf 80/443, alles), nicht nur das Dashboard selbst.
 
+Zusätzlich ist die Dashboard-App selbst gehärtet (App-Ebene, unabhängig von nftables/OPNsense):
+
+- Echte Security-Header per Helmet (CSP, `X-Frame-Options`, `X-Content-Type-Options`, kein
+  `X-Powered-By`)
+- Login-Bruteforce-Schutz (`DASHBOARD_MAX_LOGIN_FAILURES`/`DASHBOARD_LOGIN_WINDOW_MINUTES`) –
+  sperrt die IP wie bei SSH-Bruteforce
+- App-Ebene-Rate-Limiting (`RATE_LIMIT_*`) mit automatischer Sperrung bei wiederholtem Missbrauch
+- Slowloris-Härtung (kurze HTTP-Header-/Request-Timeouts)
+- Begrenzte Request-Body-Größe (64 KB)
+- Timing-sicherer Passwort-/Benutzername-Vergleich (`crypto.timingSafeEqual`)
+- Log-Rotation für `security-events.log` gegen Disk-Exhaustion durch massenhaft ausgelöste Events
+
 Jeder Check kann fehlschlagen oder ein Tool kann fehlen – in dem Fall wird das als
 "nicht verfügbar" bzw. mit der echten Fehlermeldung angezeigt, niemals als grüner Haken.
 
@@ -42,6 +54,18 @@ Jeder Check kann fehlschlagen oder ein Tool kann fehlen – in dem Fall wird das
 - **Der USB-Monitor blockiert nichts physisch.** Er erkennt und protokolliert neu
   angeschlossene Geräte. Ein tatsächliches Sperren von USB-Ports braucht zusätzliche
   Betriebssystem-Mechanismen (z. B. `usbguard`), die Servnix nicht mitbringt.
+- **Der Login-Bruteforce-Schutz des Dashboards sieht im empfohlenen Standard-Setup (nur
+  `127.0.0.1` + SSH-Tunnel) jeden Zugriff als `127.0.0.1`** – die echte Angreifer-IP ist durch
+  den Tunnel maskiert, und Loopback-Adressen werden aus Selbstaussperr-Schutz nie gesperrt.
+  Dieser Schutz greift also vor allem bei einer bewussten `HOST`-Änderung (z. B. eigener
+  Reverse-Proxy mit echten Client-IPs). Für den SSH-Zugang selbst sorgt weiterhin der Servnix
+  Guard bzw. `fail2ban` für den eigentlichen Bruteforce-Schutz.
+- **Es gibt keine Software, die "100% sicher gegen alle Cyberangriffe" macht** – das ist als
+  Versprechen technisch nicht haltbar (Zero-Day-Lücken in Betriebssystem/Kernel/eingesetzter
+  Software lassen sich durch keine Konfiguration ausschließen). Servnix reduziert real und
+  nachvollziehbar die häufigsten Angriffsvektoren (offene Ports, schwache TLS-Konfiguration,
+  fehlende Security-Header, Bruteforce, Portscans, bekannte Dependency-CVEs) – das ist der
+  ehrliche Anspruch, nicht mehr und nicht weniger.
 - **Keine Zertifizierung** für CIS/HIPAA/GDPR/PCI-DSS. Die Checks orientieren sich an
   gängigen Best Practices, ersetzen aber keinen formalen Audit.
 
@@ -62,3 +86,8 @@ kontaktiere den Maintainer direkt über die im Profil hinterlegten Kanäle.
 - Regelmäßig `./scripts/security-scan.sh` laufen lassen und die "Offenen Punkte" abarbeiten.
 - Vor dem Aktivieren des Servnix Guards **immer** die eigene IP in `GUARD_ALLOWLIST` eintragen,
   sonst droht Selbstaussperrung bei zu vielen eigenen Fehlversuchen.
+- Node.js-Prozess nach Möglichkeit als eigener, unprivilegierter Systemuser laufen lassen (nicht
+  als root) – nur der Servnix Guard und die Firewall-Scripts selbst brauchen root/sudo, nicht
+  das Dashboard.
+- Server regelmäßig mit Sicherheitsupdates versorgen (`apt update && apt upgrade`, `npm audit
+  fix`) – kein Tool kann fehlende Betriebssystem-Patches ersetzen.
