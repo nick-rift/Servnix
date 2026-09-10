@@ -423,13 +423,29 @@ function applyTheme(theme) {
   btn.textContent = theme === "light" ? "🌙 Dark" : "☀️ Light";
 }
 
+function safeGetStoredTheme() {
+  try {
+    return window.localStorage.getItem(THEME_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStoredTheme(theme) {
+  try {
+    window.localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Fallback: Theme bleibt fuer diese Sitzung aktiv, nur ohne Persistenz.
+  }
+}
+
 function initThemeToggle() {
-  const stored = window.localStorage.getItem(THEME_KEY);
+  const stored = safeGetStoredTheme();
   applyTheme(stored === "light" ? "light" : "dark");
   $("#themeToggle").addEventListener("click", () => {
     const current = document.documentElement.dataset.theme === "light" ? "light" : "dark";
     const next = current === "light" ? "dark" : "light";
-    window.localStorage.setItem(THEME_KEY, next);
+    safeSetStoredTheme(next);
     applyTheme(next);
   });
 }
@@ -467,6 +483,8 @@ if (typeof module !== "undefined") {
     escapeHtml,
     metricRow,
     note,
+    safeGetStoredTheme,
+    safeSetStoredTheme,
     statusChip,
   };
 }

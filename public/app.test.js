@@ -37,3 +37,15 @@ test('buildOpnsenseViewModel renders failed state honestly', () => {
   assert.match(view.hintHtml, /kein Erfolg vorgetaeuscht/);
   assert.equal(view.rulesHtml, '');
 });
+
+test('buildOpnsenseViewModel renders fallback note when rules cannot be read', () => {
+  const view = buildOpnsenseViewModel(
+    { configured: true, host: 'https://fw.example.local' },
+    { connected: true },
+    { ok: false },
+  );
+
+  assert.ok(view.statusHtml.includes('Verbunden mit https://fw.example.local'));
+  assert.equal(view.showHint, false);
+  assert.match(view.rulesHtml, /keine Regelobjekte gelesen werden/);
+});

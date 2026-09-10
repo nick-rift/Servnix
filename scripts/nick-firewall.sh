@@ -496,6 +496,8 @@ write_ruleset() {
 }
 
 service_content() {
+  local nft_path
+  nft_path="${NFT_BIN:-nft}"
   cat <<SERVICE
 [Unit]
 Description=Nick Firewall (nftables)
@@ -504,8 +506,8 @@ Before=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '/usr/sbin/nft delete table inet ${TABLE} 2>/dev/null || true; /usr/sbin/nft -f ${RULESET_FILE}'
-ExecStop=/bin/sh -c '/usr/sbin/nft delete table inet ${TABLE} 2>/dev/null || true'
+ExecStart=/bin/sh -c '${nft_path} delete table inet ${TABLE} 2>/dev/null || true; ${nft_path} -f ${RULESET_FILE}'
+ExecStop=/bin/sh -c '${nft_path} delete table inet ${TABLE} 2>/dev/null || true'
 RemainAfterExit=yes
 
 [Install]
@@ -557,6 +559,7 @@ install_cli_copy() {
 
 cmd_install() {
   require_root
+  require_nft
   ensure_config_ready
   write_ruleset
   write_file "$SERVICE_FILE" "$(service_content)"
@@ -575,6 +578,7 @@ cmd_install() {
 
 cmd_enable() {
   require_root
+  require_nft
   ensure_config_ready
   write_ruleset
   warn_if_legacy_active
@@ -595,7 +599,6 @@ cmd_disable() {
     return 0
   fi
   "$NFT_BIN" delete table inet "$TABLE" 2>/dev/null || true
-  "$NFT_BIN" delete table inet "$LEGACY_TABLE" 2>/dev/null || true
   if [ -n "$SYSTEMCTL_BIN" ]; then
     "$SYSTEMCTL_BIN" stop nick-firewall.service >/dev/null 2>&1 || true
   fi
@@ -603,7 +606,9 @@ cmd_disable() {
 }
 
 service_status_text() {
-  if [ -n "$SYSTEMCTL_BIN" ] && [ -f "$SERVICE_FILE" ]; then
+  if [ "$DRY_RUN" -eq 1 ] && path_exists "$SERVICE_FILE"; then
+    echo "simuliert"
+  elif [ -n "$SYSTEMCTL_BIN" ] && path_exists "$SERVICE_FILE"; then
     "$SYSTEMCTL_BIN" is-enabled nick-firewall.service 2>/dev/null || true
   else
     echo "nicht installiert"
