@@ -11,7 +11,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
-    "scan": "node server/cli-scan.js"
+    "scan": "node server/cli-scan.js",
+    "test": "node --test public/app.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

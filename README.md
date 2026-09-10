@@ -58,7 +58,7 @@ Aus allen Checks wird ein **nachvollziehbarer Security-Score** berechnet (`serve
 - **Kernel-Härtung** – SYN-Cookies, rp_filter, deaktivierte ICMP-Redirects werden per `sysctl` gesetzt.
 - **Persistenz** – die Regeln werden unter `/etc/nick-firewall/` gespeichert und per systemd-Service `nick-firewall.service` beim Boot geladen.
 - **Standalone-CLI** – `nick-firewall install|enable|disable|status|allow <port/ip>|deny <port/ip>|reset` funktioniert auch ohne das Dashboard auf beliebigen Debian-/Ubuntu-Servern.
-- **Setup mit sinnvollen Vorschlägen** – beim ersten `install` erkennt die CLI den SSH-Port, schaut auf offene Ports und schlägt Presets wie Webserver, reiner SSH-Server oder Custom vor.
+- **Setup mit sinnvollen Vorschlägen** – beim ersten `install` erkennt die CLI den SSH-Port, schaut auf offene Ports und schlägt Presets wie Webserver, reiner SSH-Server oder Custom vor. Erkannte Zusatz-Ports werden dabei nicht stillschweigend freigegeben, sondern muessen bestaetigt werden.
 - **Konfigurationsdatei statt Script-Edit** – Regeln liegen in `/etc/nick-firewall/rules.conf` und werden dort gepflegt, nicht direkt im Script.
 
 ```bash

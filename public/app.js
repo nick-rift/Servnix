@@ -251,32 +251,48 @@ async function triggerScan() {
 
 async function loadOpnsense() {
   const cfg = await api("/api/opnsense/config");
+  const test = cfg.configured ? await api("/api/opnsense/test") : null;
+  const rules = cfg.configured && test.connected ? await api("/api/opnsense/rules") : null;
+  renderOpnsenseView(buildOpnsenseViewModel(cfg, test, rules));
+}
+
+function buildOpnsenseViewModel(cfg, test, rules) {
+  if (!cfg.configured) {
+    return {
+      statusHtml: statusChip("Nicht konfiguriert", "warn"),
+      hintHtml: "Host, API-Key und API-Secret in <code>.env</code> eintragen, dann den Server neu starten. Ohne diese Angaben bleibt nur die lokale Nick Firewall aktiv.",
+      showHint: true,
+      rulesHtml: "",
+    };
+  }
+
+  if (test && test.connected) {
+    return {
+      statusHtml: statusChip(`Verbunden mit ${cfg.host}`, "ok"),
+      hintHtml: "",
+      showHint: false,
+      rulesHtml: rules && rules.ok && rules.data && Array.isArray(rules.data.rows)
+        ? `<div class="metric-list">${metricRow("Regeln gefunden", statusChip(`${rules.data.rows.length} Regel(n)`, "ok"))}${metricRow("Einordnung", escapeHtml("Die Edge-Firewall antwortet sauber auf API-Abfragen."))}</div>`
+        : note("Verbindung steht, aber es konnten keine Regelobjekte gelesen werden."),
+    };
+  }
+
+  return {
+    statusHtml: statusChip(`Verbindung fehlgeschlagen: ${(test && test.error) || "unbekannt"}`, "bad"),
+    hintHtml: "Die Zugangsdaten oder die Erreichbarkeit von OPNsense sollten geprueft werden. Es wird absichtlich kein Erfolg vorgetaeuscht.",
+    showHint: true,
+    rulesHtml: "",
+  };
+}
+
+function renderOpnsenseView(viewModel) {
   const statusEl = $("#opnsenseStatus");
   const hintEl = $("#opnsenseHint");
   const rulesEl = $("#opnsenseRules");
-
-  if (!cfg.configured) {
-    statusEl.innerHTML = statusChip("Nicht konfiguriert", "warn");
-    hintEl.classList.remove("hidden");
-    hintEl.innerHTML = "Host, API-Key und API-Secret in <code>.env</code> eintragen, dann den Server neu starten. Ohne diese Angaben bleibt nur die lokale Nick Firewall aktiv.";
-    rulesEl.innerHTML = "";
-    return;
-  }
-
-  const test = await api("/api/opnsense/test");
-  if (test.connected) {
-    statusEl.innerHTML = statusChip(`Verbunden mit ${cfg.host}`, "ok");
-    hintEl.classList.add("hidden");
-    const rules = await api("/api/opnsense/rules");
-    rulesEl.innerHTML = rules.ok && rules.data && Array.isArray(rules.data.rows)
-      ? `<div class="metric-list">${metricRow("Regeln gefunden", statusChip(`${rules.data.rows.length} Regel(n)`, "ok"))}${metricRow("Einordnung", escapeHtml("Die Edge-Firewall antwortet sauber auf API-Abfragen."))}</div>`
-      : note("Verbindung steht, aber es konnten keine Regelobjekte gelesen werden.");
-  } else {
-    statusEl.innerHTML = statusChip(`Verbindung fehlgeschlagen: ${test.error}`, "bad");
-    hintEl.classList.remove("hidden");
-    hintEl.textContent = "Die Zugangsdaten oder die Erreichbarkeit von OPNsense sollten geprueft werden. Es wird absichtlich kein Erfolg vorgetaeuscht.";
-    rulesEl.innerHTML = "";
-  }
+  statusEl.innerHTML = viewModel.statusHtml;
+  hintEl.innerHTML = viewModel.hintHtml;
+  hintEl.classList.toggle("hidden", !viewModel.showHint);
+  rulesEl.innerHTML = viewModel.rulesHtml;
 }
 
 function bindFirewallActions() {
@@ -418,18 +434,39 @@ function initThemeToggle() {
   });
 }
 
-$("#scanBtn").addEventListener("click", triggerScan);
-setLoadingStates();
-initThemeToggle();
-bindFirewallActions();
-bindBlockForm();
-loadLatest();
-loadOpnsense().catch((err) => {
-  $("#opnsenseStatus").innerHTML = statusChip(`OPNsense-Check fehlgeschlagen: ${err.message}`, "warn");
-});
-loadBlocklist();
-loadSecurityEvents();
-loadHardeningStatus();
-setInterval(loadLatest, 30000);
-setInterval(loadBlocklist, 30000);
-setInterval(loadSecurityEvents, 30000);
+function initDashboard() {
+  $("#scanBtn").addEventListener("click", triggerScan);
+  setLoadingStates();
+  initThemeToggle();
+  bindFirewallActions();
+  bindBlockForm();
+  loadLatest();
+  loadOpnsense().catch((err) => {
+    renderOpnsenseView({
+      statusHtml: statusChip(`OPNsense-Check fehlgeschlagen: ${err.message}`, "warn"),
+      hintHtml: "",
+      showHint: false,
+      rulesHtml: "",
+    });
+  });
+  loadBlocklist();
+  loadSecurityEvents();
+  loadHardeningStatus();
+  setInterval(loadLatest, 30000);
+  setInterval(loadBlocklist, 30000);
+  setInterval(loadSecurityEvents, 30000);
+}
+
+if (typeof document !== "undefined") {
+  initDashboard();
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    buildOpnsenseViewModel,
+    escapeHtml,
+    metricRow,
+    note,
+    statusChip,
+  };
+}

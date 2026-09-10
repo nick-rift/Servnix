@@ -319,31 +319,22 @@ find_open_ports() {
 ports_for_profile() {
   local profile="$1"
   local ssh_port="$2"
-  local open_ports="$3"
   case "$profile" in
     ssh-only)
       printf '%s' "$ssh_port"
       ;;
-    custom)
-      if [ -n "$open_ports" ]; then
-        printf '%s' "$open_ports"
-      else
-        printf '%s' "$ssh_port"
-      fi
-      ;;
     *)
-      printf '%s' "$(sort_csv_ports "${ssh_port},80,443,${open_ports}")"
+      printf '%s' "$(sort_csv_ports "${ssh_port},80,443")"
       ;;
   esac
 }
 
 setup_defaults() {
-  local detected_ssh detected_open
+  local detected_ssh
   detected_ssh="$(find_ssh_port)"
-  detected_open="$(find_open_ports)"
   PROFILE="$DEFAULT_PROFILE"
   SSH_PORT="$detected_ssh"
-  ALLOW_TCP_PORTS="$(ports_for_profile "$PROFILE" "$SSH_PORT" "$detected_open")"
+  ALLOW_TCP_PORTS="$(ports_for_profile "$PROFILE" "$SSH_PORT")"
   DENY_TCP_PORTS="$DEFAULT_DENY_TCP_PORTS"
   ALLOW_IPS="$DEFAULT_ALLOW_IPS"
   DENY_IPS="$DEFAULT_DENY_IPS"
@@ -356,7 +347,7 @@ interactive_setup() {
 
   info "Interaktives Setup startet. Vorschlag: SSH-Port ${detected_ssh}, offene Ports: ${detected_open:-keine erkannt}."
   echo "Waehle ein Preset:"
-  echo "  1) Webserver (SSH + 80 + 443 + erkannte offene Ports)"
+  echo "  1) Webserver (sicherer Standard: SSH + 80 + 443)"
   echo "  2) Reiner SSH-Server (nur SSH offen)"
   echo "  3) Custom"
   read -r -p "Preset [1]: " preset_choice
@@ -373,10 +364,19 @@ interactive_setup() {
   is_valid_port "$SSH_PORT" || fail "Ungueltiger SSH-Port: ${SSH_PORT}"
 
   if [ "$PROFILE" = "custom" ]; then
-    read -r -p "Erlaubte TCP-Ports (CSV) [${detected_open:-$SSH_PORT}]: " custom_ports
-    ALLOW_TCP_PORTS="${custom_ports:-${detected_open:-$SSH_PORT}}"
+    read -r -p "Erlaubte TCP-Ports (CSV) [${SSH_PORT}]: " custom_ports
+    ALLOW_TCP_PORTS="${custom_ports:-$SSH_PORT}"
   else
-    ALLOW_TCP_PORTS="$(ports_for_profile "$PROFILE" "$SSH_PORT" "$detected_open")"
+    ALLOW_TCP_PORTS="$(ports_for_profile "$PROFILE" "$SSH_PORT")"
+    if [ -n "$detected_open" ]; then
+      echo "Erkannte offene TCP-Ports: ${detected_open}"
+      read -r -p "Diese erkannten Ports zusaetzlich dauerhaft erlauben? [y/N]: " preset_choice
+      case "${preset_choice:-N}" in
+        y|Y|yes|YES)
+          ALLOW_TCP_PORTS="$(sort_csv_ports "${ALLOW_TCP_PORTS},${detected_open}")"
+          ;;
+      esac
+    fi
   fi
 
   read -r -p "Zusaetzliche Allow-IP(s), CSV, optional []: " custom_allow_ips
@@ -504,7 +504,7 @@ Before=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '/usr/sbin/nft delete table inet ${TABLE} 2>/dev/null || true; /usr/sbin/nft delete table inet ${LEGACY_TABLE} 2>/dev/null || true; /usr/sbin/nft -f ${RULESET_FILE}'
+ExecStart=/bin/sh -c '/usr/sbin/nft delete table inet ${TABLE} 2>/dev/null || true; /usr/sbin/nft -f ${RULESET_FILE}'
 ExecStop=/bin/sh -c '/usr/sbin/nft delete table inet ${TABLE} 2>/dev/null || true'
 RemainAfterExit=yes
 
@@ -534,8 +534,14 @@ apply_ruleset() {
     return 0
   fi
   "$NFT_BIN" delete table inet "$TABLE" 2>/dev/null || true
-  "$NFT_BIN" delete table inet "$LEGACY_TABLE" 2>/dev/null || true
   "$NFT_BIN" -f "$RULESET_FILE"
+}
+
+warn_if_legacy_active() {
+  if [ -n "$NFT_BIN" ] && "$NFT_BIN" list table inet "$LEGACY_TABLE" >/dev/null 2>&1; then
+    warn "Legacy-Tabelle ${LEGACY_TABLE} ist noch aktiv. Nick Firewall ersetzt sie nicht automatisch, um bestehende Regeln nicht destruktiv zu loeschen."
+    warn "Pruefe vor Produktivbetrieb bewusst, ob die alte Servnix-Firewall noch benoetigt wird."
+  fi
 }
 
 install_cli_copy() {
@@ -556,6 +562,7 @@ cmd_install() {
   write_file "$SERVICE_FILE" "$(service_content)"
   write_file "$SYSCTL_FILE" "$(sysctl_content)"
   install_cli_copy
+  warn_if_legacy_active
   apply_ruleset
   run_cmd sysctl -p "$SYSCTL_FILE" >/dev/null 2>&1 || true
   if [ -n "$SYSTEMCTL_BIN" ]; then
@@ -570,6 +577,7 @@ cmd_enable() {
   require_root
   ensure_config_ready
   write_ruleset
+  warn_if_legacy_active
   apply_ruleset
   if [ -n "$SYSTEMCTL_BIN" ]; then
     run_cmd "$SYSTEMCTL_BIN" daemon-reload

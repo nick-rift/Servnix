@@ -73,6 +73,7 @@ Beim ersten `install` schlaegt Nick Firewall sinnvolle Defaults vor:
   - **Webserver**
   - **reiner SSH-Server**
   - **Custom**
+- uebernimmt erkannte offene Ports **nicht stillschweigend**, sondern fragt im interaktiven Setup nach einer bestaetigten Freigabe
 
 Die finale Konfiguration landet in:
 
