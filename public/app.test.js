@@ -49,3 +49,15 @@ test('buildOpnsenseViewModel renders fallback note when rules cannot be read', (
   assert.equal(view.showHint, false);
   assert.match(view.rulesHtml, /keine Regelobjekte gelesen werden/);
 });
+
+test('buildOpnsenseViewModel renders fallback note when rules rows are missing', () => {
+  const view = buildOpnsenseViewModel(
+    { configured: true, host: 'https://fw.example.local' },
+    { connected: true },
+    { ok: true, data: {} },
+  );
+
+  assert.ok(view.statusHtml.includes('Verbunden mit https://fw.example.local'));
+  assert.equal(view.showHint, false);
+  assert.match(view.rulesHtml, /keine Regelobjekte gelesen werden/);
+});

@@ -121,21 +121,23 @@ function isValidIpv4(ip) {
 async function syncNftBlock(ip) {
   // best effort: Tabelle existiert evtl. nicht (Firewall nicht installiert) oder
   // es fehlen root-Rechte - beides ist kein Fehler, wird nur reported.
+  let lastError = null;
   for (const table of NFT_TABLES) {
     const res = await run('nft', ['add', 'element', 'inet', table, 'blackhole_v4', `{ ${ip} }`]);
     if (res.ok) return { ok: true, table };
+    lastError = res.stderr || res.error;
   }
-  const fallback = await run('nft', ['add', 'element', 'inet', NFT_TABLES[0], 'blackhole_v4', `{ ${ip} }`]);
-  return { ok: false, error: fallback.stderr || fallback.error };
+  return { ok: false, error: lastError };
 }
 
 async function syncNftUnblock(ip) {
+  let lastError = null;
   for (const table of NFT_TABLES) {
     const res = await run('nft', ['delete', 'element', 'inet', table, 'blackhole_v4', `{ ${ip} }`]);
     if (res.ok) return { ok: true, table };
+    lastError = res.stderr || res.error;
   }
-  const fallback = await run('nft', ['delete', 'element', 'inet', NFT_TABLES[0], 'blackhole_v4', `{ ${ip} }`]);
-  return { ok: false, error: fallback.stderr || fallback.error };
+  return { ok: false, error: lastError };
 }
 
 function isAllowlisted(ip) {

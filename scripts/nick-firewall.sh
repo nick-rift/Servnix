@@ -637,6 +637,10 @@ cmd_status() {
   info "Allow-IP(s): ${ALLOW_IPS:-keine}"
   info "Deny-IP(s): ${DENY_IPS:-keine}"
   info "systemd: $(service_status_text)"
+  if [ -z "$NFT_BIN" ]; then
+    warn "nft ist nicht installiert; Tabellenstatus kann nicht live ausgelesen werden."
+    return 1
+  fi
 
   if table_name="$(active_table_name)"; then
     info "Aktive nftables-Tabelle: ${table_name}"
