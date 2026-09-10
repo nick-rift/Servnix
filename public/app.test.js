@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildOpnsenseViewModel, getFirewallActionPath } = require('./app.js');
@@ -65,4 +67,12 @@ test('buildOpnsenseViewModel renders fallback note when rules rows are missing',
 test('getFirewallActionPath uses the Nick Firewall route and encodes values', () => {
   assert.equal(getFirewallActionPath('enable'), '/api/firewall/nick/enable');
   assert.equal(getFirewallActionPath('allow custom'), '/api/firewall/nick/allow%20custom');
+});
+
+test('dashboard entry HTML wires branded favicon and logo assets', () => {
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+  assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="favicon\.svg"/);
+  assert.match(html, /<img src="logo\.svg" alt="Nick Firewall Logo" class="brand-logo"/);
+  assert.match(html, /<h1>Nick Firewall<\/h1>/);
 });

@@ -96,6 +96,14 @@ run_cmd() {
   "$@"
 }
 
+run_cmd_quiet() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    info "DRY-RUN: $* >/dev/null 2>&1"
+    return 0
+  fi
+  "$@" >/dev/null 2>&1
+}
+
 shadow_path() {
   printf '%s%s' "$DRY_RUN_STATE_DIR" "$1"
 }
@@ -567,10 +575,10 @@ cmd_install() {
   install_cli_copy
   warn_if_legacy_active
   apply_ruleset
-  run_cmd sysctl -p "$SYSCTL_FILE" >/dev/null 2>&1 || true
+  run_cmd_quiet sysctl -p "$SYSCTL_FILE" || true
   if [ -n "$SYSTEMCTL_BIN" ]; then
     run_cmd "$SYSTEMCTL_BIN" daemon-reload
-    run_cmd "$SYSTEMCTL_BIN" enable nick-firewall.service >/dev/null 2>&1 || true
+    run_cmd_quiet "$SYSTEMCTL_BIN" enable nick-firewall.service || true
   fi
   info "Installiert. Config: ${CONFIG_FILE}"
   info "Aktivieren/Status: sudo nick-firewall enable | status"
@@ -585,8 +593,8 @@ cmd_enable() {
   apply_ruleset
   if [ -n "$SYSTEMCTL_BIN" ]; then
     run_cmd "$SYSTEMCTL_BIN" daemon-reload
-    run_cmd "$SYSTEMCTL_BIN" enable nick-firewall.service >/dev/null 2>&1 || true
-    run_cmd "$SYSTEMCTL_BIN" start nick-firewall.service >/dev/null 2>&1 || true
+    run_cmd_quiet "$SYSTEMCTL_BIN" enable nick-firewall.service || true
+    run_cmd_quiet "$SYSTEMCTL_BIN" start nick-firewall.service || true
   fi
   info "Aktiviert. Erlaubte TCP-Ports: ${ALLOW_TCP_PORTS}"
 }
