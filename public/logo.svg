@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Nick Firewall Logo</title>
+  <desc id="desc">Shield logo with N and signal ring</desc>
+  <defs>
+    <linearGradient id="shield" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#62d7ff"/>
+      <stop offset="100%" stop-color="#7d6bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#081425"/>
+  <path d="M64 16 102 30v28c0 26-14 43-38 54C40 101 26 84 26 58V30z" fill="url(#shield)"/>
+  <path d="M44 87V41h11l18 26V41h11v46H73L55 61v26z" fill="#081425"/>
+  <circle cx="95" cy="34" r="13" fill="#081425" opacity="0.92"/>
+  <path d="M88 34c2-4 12-4 14 0m-11 5c1-2 7-2 8 0" stroke="#62d7ff" stroke-width="4" stroke-linecap="round" fill="none"/>
+</svg>

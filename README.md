@@ -20,7 +20,7 @@
 Servnix ist ein selbst gehostetes Node.js-Dashboard, das auf deinem Server läuft und drei Dinge tatsächlich tut:
 
 1. **Es scannt deinen Server live** – Firewall-Status, offene Ports, TLS/SSL-Zertifikat, HTTP-Security-Header, npm/pip-Vulnerabilities, Kernel/OS, fail2ban – alles per echten System-Kommandos (`nft`, `ss`, `openssl`, `npm audit`, `sysctl`, …), nicht per Beispieldaten.
-2. **Es bringt eine eigene Firewall mit** – `servnix-firewall.sh` baut ein nftables-Regelwerk mit Default-Deny, Stateful Filtering, SYN-Flood-/Portscan-Schutz und Rate-Limiting, komplett unabhängig von OPNsense.
+2. **Es bringt eine eigene Firewall mit** – **Nick Firewall** (`scripts/nick-firewall.sh`, Legacy-Wrapper: `scripts/servnix-firewall.sh`) baut ein nftables-Regelwerk mit Default-Deny, Stateful Filtering, SYN-Flood-/Portscan-Schutz und Rate-Limiting, komplett unabhängig von OPNsense.
 3. **Es kann optional mit OPNsense sprechen** – über die offizielle OPNsense-REST-API (API-Key/Secret), um Regeln/Status abzufragen und IPs zu sperren.
 
 Was Servnix **nicht** ist: ein fertiges SOC, ein Pentest-Tool oder eine Compliance-Zertifizierung. Jede Zahl im Dashboard kommt aus einem echten Check auf deinem System. Wenn ein Tool fehlt (z. B. `fail2ban`), steht das ehrlich als "nicht installiert" da – nicht als grüner Haken.
@@ -47,24 +47,29 @@ Aus allen Checks wird ein **nachvollziehbarer Security-Score** berechnet (`serve
 
 ---
 
-## 🧱 Die Servnix-Firewall (eigenständig, ohne OPNsense)
+## 🧱 Nick Firewall (eigenständig, ohne OPNsense)
 
-`scripts/servnix-firewall.sh` legt eine eigene nftables-Tabelle `servnix_fw` an:
+`scripts/nick-firewall.sh` legt standardmäßig eine eigene nftables-Tabelle `nick_firewall` an (liest aber zur Kompatibilität auch bestehende `servnix_fw`-Installationen weiter sauber aus):
 
 - **Default-Deny** auf `INPUT` – alles, was nicht explizit erlaubt ist, wird verworfen.
 - **Stateful Filtering** – nur Pakete zu bereits etablierten/eigenen Verbindungen kommen durch.
 - **Portscan-Erkennung** – klassische Scan-Flag-Kombinationen (NULL-Scan, SYN-FIN, SYN-RST) werden verworfen.
 - **SYN-Flood-/DDoS-Rate-Limiting** – neue Verbindungen werden pro Sekunde begrenzt, SSH zusätzlich strenger.
 - **Kernel-Härtung** – SYN-Cookies, rp_filter, deaktivierte ICMP-Redirects werden per `sysctl` gesetzt.
-- **Persistenz** – die Regeln werden unter `/etc/nftables.servnix/` gespeichert und per systemd-Service beim Boot geladen.
+- **Persistenz** – die Regeln werden unter `/etc/nick-firewall/` gespeichert und per systemd-Service `nick-firewall.service` beim Boot geladen.
+- **Standalone-CLI** – `nick-firewall install|enable|disable|status|allow <port/ip>|deny <port/ip>|reset` funktioniert auch ohne das Dashboard auf beliebigen Debian-/Ubuntu-Servern.
+- **Setup mit sinnvollen Vorschlägen** – beim ersten `install` erkennt die CLI den SSH-Port, schaut auf offene Ports und schlägt Presets wie Webserver, reiner SSH-Server oder Custom vor. Erkannte Zusatz-Ports werden dabei nicht stillschweigend freigegeben, sondern muessen bestaetigt werden.
+- **Konfigurationsdatei statt Script-Edit** – Regeln liegen in `/etc/nick-firewall/rules.conf` und werden dort gepflegt, nicht direkt im Script.
 
 ```bash
-sudo ./scripts/servnix-firewall.sh install   # einmalig einrichten (braucht root)
-sudo ./scripts/servnix-firewall.sh status    # aktuelles Regelwerk anzeigen
-sudo ./scripts/servnix-firewall.sh disable   # nur im Notfall - Server ist danach ungeschützt
+sudo ./scripts/nick-firewall.sh install      # einmalig einrichten (braucht root)
+sudo nick-firewall status                    # aktuelles Regelwerk anzeigen (nach Install liegt die CLI unter /usr/local/bin/)
+sudo nick-firewall allow 8443                # Port gezielt freigeben und Regelwerk neu laden
+sudo nick-firewall deny 203.0.113.5          # IP sofort auf die Sperrliste setzen
+sudo nick-firewall disable                   # nur im Notfall - Server ist danach ungeschuetzt
 ```
 
-Anpassbar über Umgebungsvariablen: `SERVNIX_ALLOW_TCP_PORTS="22,80,443"`, `SERVNIX_SSH_PORT="22"`.
+Legacy-Aufrufe ueber `./scripts/servnix-firewall.sh ...` funktionieren weiterhin und delegieren intern an `nick-firewall`.
 
 Das Dashboard kann `install` / `enable` / `disable` / `status` auch per Button auslösen (Server braucht dafür passwortlose `sudo`-Rechte für genau dieses Script – siehe [docs/INSTALLATION.md](docs/INSTALLATION.md)).
 
@@ -81,8 +86,8 @@ Was der Guard (`server/guard.js`) tatsächlich tut:
 - **SSH-Bruteforce-Erkennung** – liest `journalctl`/`auth.log` und zählt fehlgeschlagene Logins
   pro IP. Ab `GUARD_SSH_MAX_FAILURES` (Standard: 8) in `GUARD_SSH_WINDOW_MINUTES` (Standard: 10)
   wird die IP automatisch gesperrt.
-- **Portscan-Erkennung** – liest das Kernel-Log der Servnix-Firewall (Präfix
-  `servnix-scan-attempt:`) und zählt verschiedene angefragte Ports pro IP. Ab
+- **Portscan-Erkennung** – liest das Kernel-Log der Nick Firewall (Präfix
+  `nick-firewall-scan:`; Legacy-Installationen weiterhin `servnix-scan-attempt:`) und zählt verschiedene angefragte Ports pro IP. Ab
   `GUARD_PORTSCAN_MAX_PORTS` (Standard: 15) in `GUARD_PORTSCAN_WINDOW_MINUTES` (Standard: 5)
   wird die IP automatisch gesperrt.
 - **USB-Geräte-Überwachung** – vergleicht `lsusb`-Ausgabe mit dem letzten bekannten Stand und
@@ -97,8 +102,8 @@ ausgesperrt, inklusive Zugriff auf jede andere Webseite/jeden anderen Dienst auf
 Server. Ist zusätzlich OPNsense konfiguriert, wird die IP auch dort in den Alias eingetragen.
 
 ```bash
-# Voraussetzung: Servnix-Firewall muss installiert sein (liefert das Scan-Log)
-sudo ./scripts/servnix-firewall.sh install
+# Voraussetzung: Nick Firewall muss installiert sein (liefert das Scan-Log)
+sudo ./scripts/nick-firewall.sh install
 
 # Eigene IP in .env eintragen, damit du dich nicht selbst aussperrst!
 # GUARD_ALLOWLIST=<deine-eigene-ip>
@@ -255,9 +260,9 @@ node server/cli-hash-password.js "DeinSicheresPasswort"
 # Ergebnis in .env als DASHBOARD_PASSWORD_HASH eintragen
 ```
 
-**4. Eigene Firewall einrichten (optional, empfohlen)**
+**4. Nick Firewall einrichten (optional, empfohlen)**
 ```bash
-sudo ./scripts/servnix-firewall.sh install
+sudo ./scripts/nick-firewall.sh install
 ```
 
 **4a. Servnix Guard einrichten (optional, empfohlen)**
@@ -285,6 +290,24 @@ Servnix Dashboard laeuft auf http://127.0.0.1:3000
 ```
 
 ---
+
+## 🧱 Nick Firewall – standalone nutzen
+
+Wenn du nur die Firewall ohne komplettes Dashboard einsetzen willst, geht das jetzt explizit als eigenes Tool:
+
+```bash
+# Schnellstart ueber Git-Clone:
+git clone https://github.com/nick-rift/Servnix.git
+cd Servnix
+sudo ./scripts/nick-firewall.sh install
+
+# Danach steht die CLI systemweit bereit:
+sudo nick-firewall status
+sudo nick-firewall allow 443
+sudo nick-firewall deny 203.0.113.5
+```
+
+Die Details, inklusive `curl`-/Raw-Installationsweg, Config-Datei, unterstuetzter Distros und ehrlicher Grenzen, stehen in [docs/nick-firewall.md](docs/nick-firewall.md).
 
 ## 🖥️ Dashboard aufrufen (nur über localhost, nicht über die Server-IP)
 
@@ -329,13 +352,13 @@ siehe Warnhinweis dazu in `.env.example`.
 Kein Mockup – ein reales, per Express ausgeliefertes Web-Interface (`public/`), das ausschließlich die eigene API konsumiert:
 
 - **Security-Score** mit nachvollziehbarer Punkteliste (was genau fehlt und warum)
-- **Firewall-Status** (Servnix-nftables + ufw), Port-Übersicht, DDoS-Härtung, fail2ban-Jails
+- **Firewall-Status** (Nick Firewall / Legacy-Servnix-nftables + ufw), Port-Übersicht, DDoS-Härtung, fail2ban-Jails
 - **TLS/SSL-Status** mit echtem Ablaufdatum und Protokoll
 - **HTTP-Security-Header-Check**
 - **Website-Sicherheit** – sensible Dateien, gefährliche HTTP-Methoden, CORS, Directory-Listing
 - **Dependency-Audit** (npm/pip)
 - **OPNsense-Kachel** mit Live-Verbindungsstatus
-- **Firewall-Steuerung** (install/enable/disable/status per Klick)
+- **Firewall-Steuerung** (install/enable/disable/status per Klick ueber die Nick-Firewall-CLI)
 - **Servnix Guard · Blockliste** – gesperrte IPs mit Grund/Quelle/Sync-Status, manuelles Sperren/Entsperren per Klick
 - **Security-Events** – Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geräte
 - **Dashboard-Härtung** – Live-Status von Security-Headern, Login-Bruteforce-Schutz, Rate-Limiting
@@ -349,7 +372,7 @@ Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ei
 | ✅ Was stimmt | ❌ Was Servnix NICHT ersetzt |
 |---|---|
 | Echte, live geprüfte Firewall-/TLS-/Header-/Dependency-Daten | Ein zertifiziertes Pentest oder einen Security-Audit durch Dritte |
-| Eine funktionierende, eigenständige nftables-Firewall | Ein vollwertiges WAF wie ModSecurity/Coraza gegen jede Anwendungslogik-Schwachstelle |
+| Eine funktionierende, eigenständige nftables-Firewall mit Config-Datei und einfacher CLI | Ein vollwertiges WAF wie ModSecurity/Coraza gegen jede Anwendungslogik-Schwachstelle |
 | Echte OPNsense-API-Anbindung (Basic Auth mit Key/Secret) | Enterprise-DDoS-Schutz auf Netzwerkebene (dafür brauchst du einen Provider wie Cloudflare/OPNsense mit ausreichend Bandbreite) |
 | Ein Score, dessen Berechnung offen im Code liegt | Eine Garantie für "100% sicher" – das gibt es nicht |
 | Automatische IP-Sperrung bei echten SSH-Bruteforce-/Portscan-Mustern | "KI" im Sinne von Machine Learning – der Guard ist regelbasiert, keine Blackbox |
@@ -366,7 +389,8 @@ GET  /api/health                    Health-Check
 GET  /api/scan/latest               letzten gespeicherten Scan abrufen
 POST /api/scan                      neuen Voll-Scan ausführen
 GET  /api/firewall/status           Firewall-Rohdaten
-POST /api/firewall/servnix/:action  install | enable | disable | status
+POST /api/firewall/servnix/:action  Legacy-Route: install | enable | disable | status
+POST /api/firewall/nick/:action     Nick-Firewall-Route: install | enable | disable | status
 GET  /api/opnsense/config           Konfigurationsstatus (ohne Secrets)
 GET  /api/opnsense/test             Verbindungstest
 GET  /api/opnsense/rules            Firewall-Regeln von OPNsense
@@ -386,7 +410,8 @@ Alle Endpunkte sind durch HTTP Basic Auth geschützt, sobald `DASHBOARD_PASSWORD
 
 | Datei | Inhalt |
 |-------|--------|
-| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Ausführlicher Setup-Guide inkl. sudo-Rechte fürs Firewall-Script |
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Ausführlicher Setup-Guide inkl. sudo-Rechte fuers Firewall-Script |
+| [docs/nick-firewall.md](docs/nick-firewall.md) | Standalone-Nutzung von Nick Firewall ohne Dashboard |
 | [docs/SECURITY.md](docs/SECURITY.md) | Was Servnix prüft, was nicht, wie man Findings meldet |
 | [docs/API.md](docs/API.md) | Vollständige API-Referenz |
 

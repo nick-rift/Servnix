@@ -2,20 +2,29 @@
 
 /**
  * firewall.js - liest den echten Firewall-Status des Hosts aus.
- * Unterstuetzt die Servnix-eigene nftables-Firewall (siehe scripts/servnix-firewall.sh),
+ * Unterstuetzt die Nick-Firewall / die bisherige Servnix-nftables-Firewall
+ * (siehe scripts/nick-firewall.sh bzw. scripts/servnix-firewall.sh),
  * ufw und rohes nftables/iptables als Fallback. Es wird NICHTS vorgetaeuscht:
  * wenn kein Regelwerk aktiv ist, wird das auch so gemeldet.
  */
 
 const { run, commandExists } = require('./exec');
 
+const PRIMARY_TABLE = 'nick_firewall';
+const LEGACY_TABLE = 'servnix_fw';
+
 async function getServnixNftStatus() {
   const hasNft = await commandExists('nft');
   if (!hasNft) return { active: false, reason: 'nft nicht installiert' };
 
-  const res = await run('nft', ['list', 'table', 'inet', 'servnix_fw']);
+  let activeTable = PRIMARY_TABLE;
+  let res = await run('nft', ['list', 'table', 'inet', PRIMARY_TABLE]);
   if (!res.ok) {
-    return { active: false, reason: 'Servnix-Firewall-Tabelle "servnix_fw" nicht geladen' };
+    activeTable = LEGACY_TABLE;
+    res = await run('nft', ['list', 'table', 'inet', LEGACY_TABLE]);
+  }
+  if (!res.ok) {
+    return { active: false, reason: `Nick-Firewall-Tabelle "${PRIMARY_TABLE}" (oder Legacy "${LEGACY_TABLE}") nicht geladen` };
   }
   const rules = res.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   const hasDropPolicy = /policy drop/.test(res.stdout);
@@ -23,6 +32,7 @@ async function getServnixNftStatus() {
   const hasEstablished = /ct state established, related accept|ct state established,related accept/.test(res.stdout);
   return {
     active: true,
+    tableName: activeTable,
     defaultDeny: hasDropPolicy,
     rateLimiting: hasRateLimit,
     statefulFiltering: hasEstablished,
