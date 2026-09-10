@@ -595,12 +595,15 @@ cmd_disable() {
   require_root
   require_nft
   if [ "$DRY_RUN" -eq 1 ]; then
-    info "DRY-RUN: Tabellen ${TABLE}/${LEGACY_TABLE} wuerden entfernt und der Dienst gestoppt"
+    info "DRY-RUN: Tabelle ${TABLE} und der zugehoerige Dienst wuerden entfernt/gestoppt"
     return 0
   fi
   "$NFT_BIN" delete table inet "$TABLE" 2>/dev/null || true
   if [ -n "$SYSTEMCTL_BIN" ]; then
     "$SYSTEMCTL_BIN" stop nick-firewall.service >/dev/null 2>&1 || true
+  fi
+  if legacy_table_active; then
+    warn "Legacy-Tabelle ${LEGACY_TABLE} ist weiter aktiv und wurde bewusst nicht geloescht."
   fi
   warn "Deaktiviert. Ohne andere Firewall gibt es dann keinen Schutz aus diesem Regelwerk."
 }
@@ -620,11 +623,11 @@ active_table_name() {
     printf '%s' "$TABLE"
     return 0
   fi
-  if [ -n "$NFT_BIN" ] && "$NFT_BIN" list table inet "$LEGACY_TABLE" >/dev/null 2>&1; then
-    printf '%s' "$LEGACY_TABLE"
-    return 0
-  fi
   return 1
+}
+
+legacy_table_active() {
+  [ -n "$NFT_BIN" ] && "$NFT_BIN" list table inet "$LEGACY_TABLE" >/dev/null 2>&1
 }
 
 cmd_status() {
@@ -645,6 +648,10 @@ cmd_status() {
   if table_name="$(active_table_name)"; then
     info "Aktive nftables-Tabelle: ${table_name}"
     "$NFT_BIN" list table inet "$table_name"
+  elif legacy_table_active; then
+    warn "Legacy-Tabelle ${LEGACY_TABLE} ist aktiv, wird von der Nick-Firewall-CLI aber nicht veraendert."
+    warn "Bitte Legacy-Regelwerk bewusst migrieren oder abschalten, bevor nur noch Nick Firewall verwaltet werden soll."
+    return 1
   else
     warn "Keine aktive Nick-Firewall-Tabelle geladen."
     return 1

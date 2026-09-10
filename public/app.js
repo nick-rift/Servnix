@@ -93,6 +93,10 @@ function scoreSummary(score) {
   return "Hoher Handlungsbedarf: wichtige Schutzmechanismen fehlen oder schlagen fehl.";
 }
 
+function getFirewallActionPath(action) {
+  return `/api/firewall/nick/${encodeURIComponent(action)}`;
+}
+
 function renderFirewall(fw) {
   const el = $("#card-firewall .body");
   const active = fw.servnix.active || (fw.ufw && fw.ufw.active);
@@ -303,7 +307,7 @@ function bindFirewallActions() {
       out.textContent = `Fuehre "${action}" aus...`;
       toast("Nick Firewall", `Aktion „${action}“ gestartet.`, "info");
       try {
-        const res = await api(`/api/firewall/nick/${action}`, { method: "POST" });
+        const res = await api(getFirewallActionPath(action), { method: "POST" });
         out.textContent = (res.stdout || "") + (res.stderr || "") + (res.note ? `\n\nHinweis: ${res.note}` : "");
         toast("Nick Firewall", res.ok ? `Aktion „${action}“ abgeschlossen.` : `Aktion „${action}“ beendet mit Rueckmeldung.`, res.ok ? "success" : "info");
         if (["install", "enable", "disable"].includes(action)) loadLatest();
@@ -481,6 +485,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     buildOpnsenseViewModel,
     escapeHtml,
+    getFirewallActionPath,
     metricRow,
     note,
     safeGetStoredTheme,

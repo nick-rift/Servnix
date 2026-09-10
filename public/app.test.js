@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildOpnsenseViewModel } = require('./app.js');
+const { buildOpnsenseViewModel, getFirewallActionPath } = require('./app.js');
 
 test('buildOpnsenseViewModel renders unconfigured state with visible hint', () => {
   const view = buildOpnsenseViewModel({ configured: false }, null, null);
@@ -60,4 +60,9 @@ test('buildOpnsenseViewModel renders fallback note when rules rows are missing',
   assert.ok(view.statusHtml.includes('Verbunden mit https://fw.example.local'));
   assert.equal(view.showHint, false);
   assert.match(view.rulesHtml, /keine Regelobjekte gelesen werden/);
+});
+
+test('getFirewallActionPath uses the Nick Firewall route and encodes values', () => {
+  assert.equal(getFirewallActionPath('enable'), '/api/firewall/nick/enable');
+  assert.equal(getFirewallActionPath('allow custom'), '/api/firewall/nick/allow%20custom');
 });
