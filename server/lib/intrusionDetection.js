@@ -9,7 +9,7 @@
  *     (ausgelesen aus journalctl/auth.log)
  *   - Portscan: X verschiedene Ports von derselben IP in Y Minuten angefragt,
  *     die NICHT auf der Allow-Liste stehen (ausgelesen aus dem nftables-Log,
- *     das scripts/servnix-firewall.sh fuer genau diesen Zweck schreibt)
+ *     das scripts/nick-firewall.sh bzw. der Legacy-Wrapper dafuer schreibt)
  * Jede Regel/Schwelle ist hier im Code sichtbar und per .env einstellbar.
  */
 
@@ -59,19 +59,20 @@ async function readRecentSshFailures(windowMinutes) {
 /** Liest die vom Servnix-Firewall-Ruleset geloggten Scan-Versuche aus dem Kernel-Log. */
 async function readRecentScanAttempts(windowMinutes) {
   const lines = [];
+  const scanPrefixes = ['nick-firewall-scan', 'servnix-scan-attempt'];
 
   const journal = await run('journalctl', [
     '-k',
     '--since', `-${windowMinutes}min`,
     '--no-pager', '-o', 'cat',
-    '-g', 'servnix-scan-attempt',
+    '-g', 'scan',
   ]);
   if (journal.available && journal.stdout) {
-    lines.push(...journal.stdout.split('\n'));
+    lines.push(...journal.stdout.split('\n').filter((line) => scanPrefixes.some((prefix) => line.includes(prefix))));
   } else {
     const dmesgRes = await run('dmesg', ['-T']);
     if (dmesgRes.ok) {
-      lines.push(...dmesgRes.stdout.split('\n').filter((l) => l.includes('servnix-scan-attempt')));
+      lines.push(...dmesgRes.stdout.split('\n').filter((line) => scanPrefixes.some((prefix) => line.includes(prefix))));
     }
   }
 

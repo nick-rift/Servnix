@@ -5,7 +5,8 @@
 # Was der Guard tatsaechlich macht (regelbasiert, KEINE "KI-Magie"):
 #   - Liest echte SSH-Logs (journalctl/auth.log) und zaehlt fehlgeschlagene
 #     Logins pro IP -> ab GUARD_SSH_MAX_FAILURES wird die IP gesperrt
-#   - Liest das Kernel-Log der Servnix-Firewall (Praefix "servnix-scan-attempt:")
+#   - Liest das Kernel-Log der Nick Firewall (Praefix "nick-firewall-scan:",
+#     Legacy ebenfalls "servnix-scan-attempt")
 #     und zaehlt verschiedene angefragte Ports pro IP -> ab GUARD_PORTSCAN_MAX_PORTS
 #     wird die IP gesperrt
 #   - Ueberwacht optional den USB-Geraetebestand (lsusb) und meldet neue
@@ -13,10 +14,11 @@
 #     von USB-Ports - das kann Software ohne usbguard/Kernel-Policies nicht
 #     seriös leisten)
 #   - Jede Sperre landet in der nftables-Menge "blackhole_v4" der
-#     Servnix-Firewall -> betrifft SOFORT den gesamten Server-Traffic dieser
+#     Nick Firewall -> betrifft SOFORT den gesamten Server-Traffic dieser
 #     IP (Dashboard, SSH, Webserver, alles), nicht nur das Dashboard
 #
-# Voraussetzung: scripts/servnix-firewall.sh muss bereits installiert sein
+# Voraussetzung: scripts/nick-firewall.sh (oder der Legacy-Wrapper
+# scripts/servnix-firewall.sh) muss bereits installiert sein
 # (liefert die Menge "blackhole_v4" und das Scan-Logging).
 #
 # Nutzung:
@@ -60,8 +62,8 @@ cmd_install() {
   cat > /etc/systemd/system/servnix-guard.service <<UNIT
 [Unit]
 Description=Servnix Guard (automatische Angriffserkennung + IP-Sperrung)
-After=network.target servnix-firewall.service
-Wants=servnix-firewall.service
+After=network.target nick-firewall.service
+Wants=nick-firewall.service
 
 [Service]
 Type=simple

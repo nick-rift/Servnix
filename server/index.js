@@ -126,20 +126,20 @@ app.post('/api/scan', async (req, res) => {
   }
 });
 
-// --- API: Servnix-Firewall Steuerung ---
+// --- API: Nick-Firewall Steuerung ---
 
 app.get('/api/firewall/status', async (req, res) => {
   const { scanFirewall } = require('./lib/firewall');
   res.json(await scanFirewall());
 });
 
-app.post('/api/firewall/servnix/:action', async (req, res) => {
+async function handleFirewallAction(req, res) {
   const action = req.params.action;
   const allowed = ['install', 'enable', 'disable', 'status'];
   if (!allowed.includes(action)) {
     return res.status(400).json({ error: `Unbekannte Aktion. Erlaubt: ${allowed.join(', ')}` });
   }
-  const scriptPath = path.join(__dirname, '..', 'scripts', 'servnix-firewall.sh');
+  const scriptPath = path.join(__dirname, '..', 'scripts', 'nick-firewall.sh');
   const result = await run('sudo', [scriptPath, action], { timeout: 30000 });
   res.json({
     action,
@@ -148,7 +148,10 @@ app.post('/api/firewall/servnix/:action', async (req, res) => {
     stderr: result.stderr,
     note: result.available ? undefined : 'sudo/Script nicht ausfuehrbar - lokal ggf. ohne sudo-Rechte',
   });
-});
+}
+
+app.post('/api/firewall/servnix/:action', handleFirewallAction);
+app.post('/api/firewall/nick/:action', handleFirewallAction);
 
 // --- API: OPNsense ---
 
@@ -237,4 +240,3 @@ const server = app.listen(PORT, HOST, () => {
 server.headersTimeout = 15000; // Zeit fuer vollstaendige Header
 server.requestTimeout = 30000; // Zeit fuer die gesamte Anfrage
 server.keepAliveTimeout = 5000; // wie lange Keep-Alive-Verbindungen offen bleiben
-

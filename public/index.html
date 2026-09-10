@@ -3,139 +3,254 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Servnix Dashboard</title>
+<title>Nick Firewall · Servnix by Nick</title>
+<meta name="description" content="Nick Firewall Dashboard mit Live-Scans, Security-Score und Firewall-Steuerung ohne externe CDNs." />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">⚡ SERVNIX <span>Security Dashboard</span></div>
-  <div class="actions">
-    <span id="lastScan" class="muted">Noch kein Scan</span>
-    <button id="scanBtn">🔍 Scan jetzt ausführen</button>
-  </div>
-</header>
-
-<main>
-  <section class="score-card">
-    <div class="score-ring">
-      <div id="scoreValue">–</div>
-      <div class="score-label">/ 10</div>
+<div class="page-shell">
+  <header class="topbar glass-card">
+    <div class="brand-lockup">
+      <img src="logo.svg" alt="Nick Firewall Logo" class="brand-logo" />
+      <div>
+        <p class="eyebrow">Servnix by Nick</p>
+        <h1>Nick Firewall</h1>
+        <p class="brand-copy">Live-Security-Dashboard fuer Debian-/Ubuntu-Server, ehrlich und ohne Demo-Daten.</p>
+      </div>
     </div>
-    <div class="score-findings">
-      <h3>Offene Punkte</h3>
-      <ul id="findingsList"><li class="muted">Noch keine Daten. Scan starten.</li></ul>
+    <div class="topbar-actions">
+      <div class="status-chip status-chip-neutral" id="lastScan">Noch kein Scan gelaufen</div>
+      <button id="themeToggle" class="ghost-btn" type="button" aria-label="Theme wechseln">☀️ Light</button>
+      <button id="scanBtn" type="button">Live-Scan starten</button>
     </div>
-  </section>
+  </header>
 
-  <section class="grid">
-    <div class="card" id="card-firewall">
-      <h2>🧱 Firewall</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-ddos">
-      <h2>🚨 DDoS-Schutz</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-ports">
-      <h2>🌐 Offene Ports</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-ssl">
-      <h2>🔒 TLS/SSL</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-headers">
-      <h2>🛡️ HTTP Security Header</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-webvuln">
-      <h2>🌐 Website-Sicherheit</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-deps">
-      <h2>📦 Dependency-Audit</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-system">
-      <h2>🖥️ System</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-opnsense">
-      <h2>🔗 OPNsense</h2>
-      <div class="body">
-        <p id="opnsenseStatus" class="muted">Prüfe Verbindung…</p>
-        <div id="opnsenseHint" class="hint hidden">
-          <p>Noch nicht verbunden. Trage Host, API-Key und API-Secret in <code>.env</code> ein
-          (unter <em>System → Access → Users → API Keys</em> in OPNsense erzeugen) und starte den Server neu.</p>
+  <main>
+    <section class="hero-grid">
+      <article class="hero-card glass-card">
+        <div class="hero-copy">
+          <p class="eyebrow">Security Ops Cockpit</p>
+          <h2>Dein Serverzustand auf einen Blick – inklusive echter Firewall-Aktionen.</h2>
+          <p class="hero-text">Nick Firewall kombiniert einen nachvollziehbaren Security-Score mit echten Systemchecks: Firewall, TLS, Header, Dependencies, Website-Schutz und OPNsense.</p>
+          <div class="hero-pills" id="heroPills">
+            <span class="status-chip status-chip-neutral">Warte auf ersten Scan</span>
+          </div>
         </div>
-        <div id="opnsenseRules"></div>
-      </div>
-    </div>
-
-    <div class="card" id="card-servnix-fw">
-      <h2>⚙️ Servnix-Firewall verwalten</h2>
-      <div class="body">
-        <p class="muted">Eigenes nftables-Regelwerk mit Default-Deny, Rate-Limiting und Portscan-Erkennung.</p>
-        <div class="btn-row">
-          <button data-fw-action="install">Installieren</button>
-          <button data-fw-action="enable">Aktivieren</button>
-          <button data-fw-action="disable" class="danger">Deaktivieren</button>
-          <button data-fw-action="status">Status</button>
+        <div class="gauge-panel">
+          <div class="score-ring" id="scoreRing" style="--score-angle: 0deg; --score-color: var(--danger);">
+            <div class="score-core">
+              <span class="score-kicker">Live Score</span>
+              <strong id="scoreValue">--</strong>
+              <span class="score-scale">/ 10</span>
+            </div>
+          </div>
+          <p class="score-summary" id="scoreSummary">Noch kein Bericht geladen.</p>
         </div>
-        <pre id="fwActionOutput" class="output"></pre>
-      </div>
-    </div>
+      </article>
 
-    <div class="card" id="card-hardening">
-      <h2>🔐 Dashboard-Härtung</h2>
-      <div class="body">
-        <p class="muted">Schutzmaßnahmen der Dashboard-App selbst, zusätzlich zur Netzwerk-Firewall.</p>
-        <div id="hardeningBody"><p class="muted">Lade Status…</p></div>
-      </div>
-    </div>
-
-    <div class="card" id="card-guard">
-      <h2>🛡️ Servnix Guard · Blockliste</h2>
-      <div class="body">
-        <p class="muted">
-          Regelbasierte Angriffserkennung (keine "KI-Magie"): zaehlt echte SSH-Fehlversuche
-          und Portscan-Muster aus den Server-Logs und sperrt Angreifer-IPs automatisch am
-          gesamten Server (nicht nur im Dashboard). Daemon starten mit
-          <code>sudo ./scripts/servnix-guard.sh install</code>.
-        </p>
-        <div class="btn-row">
-          <input type="text" id="blockIpInput" placeholder="IP manuell sperren, z.B. 203.0.113.5" />
-          <button id="blockIpBtn">🚫 Sperren</button>
+      <aside class="findings-card glass-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Prioritaeten</p>
+            <h2>Offene Punkte</h2>
+          </div>
         </div>
-        <table class="data-table">
-          <thead><tr><th>IP</th><th>Grund</th><th>Quelle</th><th>Firewall</th><th></th></tr></thead>
-          <tbody id="blocklistBody"><tr><td colspan="5" class="muted">Lade Blockliste…</td></tr></tbody>
-        </table>
+        <ul id="findingsList" class="finding-list">
+          <li class="muted">Scan starten, um konkrete Empfehlungen zu sehen.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="section-title-row">
+      <div>
+        <p class="eyebrow">Module</p>
+        <h2>Security-Lage & Aktionen</h2>
       </div>
+      <p class="muted">Alle Angaben stammen aus Live-Checks auf dem Host oder aus echten API-Antworten.</p>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="module-card glass-card" id="card-firewall">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🧱 Nick Firewall</p>
+            <h3>Firewall-Status</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Netzwerk</span>
+        </div>
+        <p class="card-description">Zeigt, ob Default-Deny, Stateful Filtering und Basis-Schutz wirklich aktiv sind.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card" id="card-ddos">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🚨 Abwehr</p>
+            <h3>DDoS & Portscan</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Kernel</span>
+        </div>
+        <p class="card-description">Prueft SYN-Cookies, Anti-Spoofing und Redirect-Haertung fuer einfache Netzwerkangriffe.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card" id="card-ssl">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🔒 Transport</p>
+            <h3>TLS / Zertifikat</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Website</span>
+        </div>
+        <p class="card-description">Sagt dir in Klartext, ob dein Zertifikat erreichbar, modern und rechtzeitig erneuerbar ist.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card" id="card-headers">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🛡️ Browser-Schutz</p>
+            <h3>HTTP-Security-Header</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">HTTP</span>
+        </div>
+        <p class="card-description">Hilft gegen Clickjacking, Content-Injection und unsaubere Browser-Defaults.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card" id="card-deps">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">📦 Supply Chain</p>
+            <h3>Dependency-Scan</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Pakete</span>
+        </div>
+        <p class="card-description">Findet bekannte Schwachstellen in deinen npm- und Python-Abhaengigkeiten.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card" id="card-webvuln">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🌐 Web-Checks</p>
+            <h3>Website-Sicherheit</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Exposure</span>
+        </div>
+        <p class="card-description">Prueft oeffentlich erreichbare Leaks, riskante Methoden und haeufige Fehlkonfigurationen.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card" id="card-opnsense">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🔗 Netzwerk-Edge</p>
+            <h3>OPNsense</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Optional</span>
+        </div>
+        <p class="card-description">Zeigt, ob die externe Firewall wirklich verbunden ist oder ob nur lokale Schutzmechanismen aktiv sind.</p>
+        <div class="body">
+          <div id="opnsenseStatus"></div>
+          <div id="opnsenseHint" class="hint hidden"></div>
+          <div id="opnsenseRules"></div>
+        </div>
+      </article>
+
+      <article class="module-card glass-card" id="card-hardening">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🔐 App-Ebene</p>
+            <h3>Dashboard-Haertung</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Node.js</span>
+        </div>
+        <p class="card-description">Prueft den Selbstschutz der App: Auth, Rate-Limits und sichere Header.</p>
+        <div class="body" id="hardeningBody"></div>
+      </article>
+
+      <article class="module-card glass-card wide-card" id="card-nick-fw-actions">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">⚙️ Aktionen</p>
+            <h3>Nick Firewall verwalten</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">CLI-Wrapper</span>
+        </div>
+        <p class="card-description">Startet die Standalone-CLI im Hintergrund. Praktisch fuer Installieren, Aktivieren, Deaktivieren und Statusabfragen.</p>
+        <div class="body">
+          <div class="btn-row">
+            <button data-fw-action="install" type="button">Installieren</button>
+            <button data-fw-action="enable" type="button">Aktivieren</button>
+            <button data-fw-action="disable" class="danger" type="button">Deaktivieren</button>
+            <button data-fw-action="status" class="ghost-btn" type="button">Status</button>
+          </div>
+          <pre id="fwActionOutput" class="output">Noch keine Aktion ausgefuehrt.</pre>
+        </div>
+      </article>
+
+      <article class="module-card glass-card wide-card" id="card-guard">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🚫 Angreifer blocken</p>
+            <h3>Servnix Guard · Blockliste</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Response</span>
+        </div>
+        <p class="card-description">Zaehlt echte SSH-Fehlversuche und Portscan-Muster aus Logs. Wer auffaellt, wird serverweit geblockt.</p>
+        <div class="body">
+          <div class="btn-row stacked-mobile">
+            <input type="text" id="blockIpInput" placeholder="IPv4 sperren, z. B. 203.0.113.5" />
+            <button id="blockIpBtn" type="button">IP sperren</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>IP</th><th>Grund</th><th>Quelle</th><th>Sync</th><th></th></tr>
+            </thead>
+            <tbody id="blocklistBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="module-card glass-card" id="card-system">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">🖥️ Host</p>
+            <h3>System</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Basis</span>
+        </div>
+        <p class="card-description">Hilft dir zu sehen, auf welchem Unterbau dein Dashboard und deine Dienste wirklich laufen.</p>
+        <div class="body"></div>
+      </article>
+
+      <article class="module-card glass-card wide-card" id="card-security-events">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">📜 Verlauf</p>
+            <h3>Security-Events</h3>
+          </div>
+          <span class="status-chip status-chip-neutral">Audit</span>
+        </div>
+        <p class="card-description">Zeigt Blockierungen, Entsperrungen und erkannte USB-Ereignisse in chronologischer Kurzform.</p>
+        <div class="body">
+          <ul id="securityEventsList" class="event-list"></ul>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="footer glass-card">
+    <div>
+      <strong>Nick Firewall</strong> · Ehrlich getestet fuer Debian/Ubuntu mit nftables. Kein Tracking, keine externen CDNs fuer Kernfunktionalitaet.
     </div>
+    <a href="https://github.com/nick-rift/Servnix" target="_blank" rel="noreferrer">Repository auf GitHub ansehen</a>
+  </footer>
+</div>
 
-    <div class="card" id="card-security-events">
-      <h2>📜 Security-Events</h2>
-      <div class="body">
-        <p class="muted">Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geraete.</p>
-        <ul id="securityEventsList"><li class="muted">Lade Ereignisse…</li></ul>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer>
-  Servnix · alle Werte auf dieser Seite stammen aus echten, live ausgeführten Systemchecks – keine Beispieldaten.
-</footer>
-
+<div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 <script src="app.js"></script>
 </body>
 </html>

@@ -31,11 +31,17 @@ Versions-Banner).
 ## Firewall
 
 ### `GET /api/firewall/status`
-Rohdaten des Firewall-Scans (Servnix-nftables, ufw, offene Ports, fail2ban, DDoS-Kernel-Parameter).
+Rohdaten des Firewall-Scans (Nick-Firewall bzw. Legacy-Servnix-nftables, ufw, offene Ports, fail2ban, DDoS-Kernel-Parameter).
 
 ### `POST /api/firewall/servnix/:action`
-`:action` ∈ `install | enable | disable | status`. Führt `scripts/servnix-firewall.sh <action>`
+Legacy-Route. `:action` ∈ `install | enable | disable | status`. Führt intern `scripts/nick-firewall.sh <action>`
 per `sudo` aus (siehe [INSTALLATION.md](INSTALLATION.md) für die nötige sudoers-Konfiguration).
+```json
+{ "action": "status", "ok": true, "stdout": "...", "stderr": "" }
+```
+
+### `POST /api/firewall/nick/:action`
+Neue Branding-Route fuer Nick Firewall. `:action` ∈ `install | enable | disable | status`.
 ```json
 { "action": "status", "ok": true, "stdout": "...", "stderr": "" }
 ```
@@ -117,5 +123,4 @@ Gibt den tatsächlich aktiven Schutzstatus der Dashboard-App zurück (keine Fake
   "hostBinding": "127.0.0.1"
 }
 ```
-
 

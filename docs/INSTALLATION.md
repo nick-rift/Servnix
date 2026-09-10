@@ -37,37 +37,48 @@ Schwellenwerte lassen sich über `DASHBOARD_MAX_LOGIN_FAILURES`, `DASHBOARD_LOGI
 `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_SECONDS` und
 `RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK` in `.env` anpassen (siehe `.env.example`).
 
-### Servnix-Firewall einrichten (empfohlen)
+### Nick Firewall einrichten (empfohlen)
 
 ```bash
-sudo ./scripts/servnix-firewall.sh install
-sudo ./scripts/servnix-firewall.sh status
+sudo ./scripts/nick-firewall.sh install
+sudo nick-firewall status
 ```
 
-Das legt eine eigene nftables-Tabelle `servnix_fw` an, persistiert sie via systemd-Service
-(`/etc/systemd/system/servnix-firewall.service`) und härtet DDoS-relevante Kernel-Parameter
-über `/etc/sysctl.d/99-servnix.conf`.
+Das legt eine eigene nftables-Tabelle `nick_firewall` an, persistiert sie via systemd-Service
+(`/etc/systemd/system/nick-firewall.service`) und härtet DDoS-relevante Kernel-Parameter
+über `/etc/sysctl.d/99-nick-firewall.conf`. Die Regeln werden nicht mehr im Script editiert,
+sondern über `/etc/nick-firewall/rules.conf`.
 
 **Damit du die Firewall auch per Dashboard-Button steuern kannst**, braucht der Prozess, unter
 dem `npm start` läuft, passwortlose `sudo`-Rechte für genau dieses Script. Beispiel (Datei
 `/etc/sudoers.d/servnix`, mit `visudo -f` anlegen):
 
 ```
-deploy ALL=(root) NOPASSWD: /pfad/zu/Servnix/scripts/servnix-firewall.sh
+deploy ALL=(root) NOPASSWD: /pfad/zu/Servnix/scripts/nick-firewall.sh
 ```
 
 Ersetze `deploy` durch den Linux-User, unter dem der Servnix-Prozess läuft. Ohne diesen Eintrag
 funktionieren die Buttons im Dashboard nicht – der Scan-Teil des Dashboards läuft aber trotzdem.
 
+Optional kannst du die Standalone-CLI danach direkt nutzen:
+
+```bash
+sudo nick-firewall allow 8443
+sudo nick-firewall deny 203.0.113.5
+sudo nick-firewall reset
+```
+
+Mehr dazu in [nick-firewall.md](nick-firewall.md).
+
 ### Servnix Guard einrichten (empfohlen)
 
 Der Guard erkennt SSH-Bruteforce-Versuche und Portscans in echten Logs und sperrt die
-Angreifer-IP automatisch (siehe README für Details). Voraussetzung: die Servnix-Firewall aus
+Angreifer-IP automatisch (siehe README für Details). Voraussetzung: die Nick Firewall aus
 dem vorherigen Schritt muss installiert sein, weil sie das Scan-Log liefert, das der Guard
 für die Portscan-Erkennung ausliest.
 
 ```bash
-sudo ./scripts/servnix-firewall.sh install   # falls noch nicht geschehen
+sudo ./scripts/nick-firewall.sh install   # falls noch nicht geschehen
 ```
 
 **Bevor du den Guard aktivierst**, trage deine eigene IP (die, von der du per SSH zugreifst)

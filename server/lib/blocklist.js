@@ -19,6 +19,7 @@ const path = require('path');
 const { run } = require('./exec');
 const opnsense = require('./opnsense');
 
+const NFT_TABLES = ['nick_firewall', 'servnix_fw'];
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const BLOCKLIST_FILE = path.join(DATA_DIR, 'blocklist.json');
 const EVENTS_FILE = path.join(DATA_DIR, 'security-events.log');
@@ -120,13 +121,21 @@ function isValidIpv4(ip) {
 async function syncNftBlock(ip) {
   // best effort: Tabelle existiert evtl. nicht (Firewall nicht installiert) oder
   // es fehlen root-Rechte - beides ist kein Fehler, wird nur reported.
-  const res = await run('nft', ['add', 'element', 'inet', 'servnix_fw', 'blackhole_v4', `{ ${ip} }`]);
-  return { ok: res.ok, error: res.ok ? null : res.stderr || res.error };
+  for (const table of NFT_TABLES) {
+    const res = await run('nft', ['add', 'element', 'inet', table, 'blackhole_v4', `{ ${ip} }`]);
+    if (res.ok) return { ok: true, table };
+  }
+  const fallback = await run('nft', ['add', 'element', 'inet', NFT_TABLES[0], 'blackhole_v4', `{ ${ip} }`]);
+  return { ok: false, error: fallback.stderr || fallback.error };
 }
 
 async function syncNftUnblock(ip) {
-  const res = await run('nft', ['delete', 'element', 'inet', 'servnix_fw', 'blackhole_v4', `{ ${ip} }`]);
-  return { ok: res.ok, error: res.ok ? null : res.stderr || res.error };
+  for (const table of NFT_TABLES) {
+    const res = await run('nft', ['delete', 'element', 'inet', table, 'blackhole_v4', `{ ${ip} }`]);
+    if (res.ok) return { ok: true, table };
+  }
+  const fallback = await run('nft', ['delete', 'element', 'inet', NFT_TABLES[0], 'blackhole_v4', `{ ${ip} }`]);
+  return { ok: false, error: fallback.stderr || fallback.error };
 }
 
 function isAllowlisted(ip) {
