@@ -276,7 +276,7 @@ app.get('/api/security-events', (req, res) => {
   res.json(blocklist.listEvents(limit));
 });
 
-app.get('/api/security-events/stream', (req, res) => {
+app.get('/api/security-events/stream', basicAuthMiddleware(), (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');

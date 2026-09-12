@@ -35,7 +35,9 @@ Die restlichen Härtungsmaßnahmen (Security-Header, Login-Bruteforce-Schutz, Ra
 Slowloris-Timeouts) sind **immer aktiv**, ohne dass du etwas dafür konfigurieren musst - nur die
 Schwellenwerte lassen sich über `DASHBOARD_MAX_LOGIN_FAILURES`, `DASHBOARD_LOGIN_WINDOW_MINUTES`,
 `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_SECONDS` und
-`RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK` in `.env` anpassen (siehe `.env.example`).
+`RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK` sowie den Auth-Schutz (`DASHBOARD_AUTH_RATE_MAX_ATTEMPTS`,
+`DASHBOARD_AUTH_RATE_WINDOW_SECONDS`, `DASHBOARD_AUTH_COOKIE_MAX_AGE_SECONDS`) in `.env` anpassen
+(siehe `.env.example`).
 
 ### Servnix-Firewall einrichten (empfohlen)
 

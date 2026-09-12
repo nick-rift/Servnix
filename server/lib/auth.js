@@ -7,6 +7,12 @@
 
 const crypto = require('crypto');
 const AUTH_COOKIE_NAME = 'servnix_auth';
+const authRateState = new Map();
+
+function getEnvInt(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -54,7 +60,26 @@ function parseCookies(header) {
 }
 
 function buildAuthCookieValue(user, hash) {
-  return crypto.createHash('sha256').update(`${user}:${hash}`).digest('hex');
+  const secret = process.env.SESSION_SECRET || hash || 'servnix-auth-fallback';
+  return crypto.createHmac('sha256', secret).update(`${user}:${hash}`).digest('hex');
+}
+
+function isAuthRateLimited(ip) {
+  const now = Date.now();
+  const maxAttempts = getEnvInt('DASHBOARD_AUTH_RATE_MAX_ATTEMPTS', 30);
+  const windowMs = getEnvInt('DASHBOARD_AUTH_RATE_WINDOW_SECONDS', 60) * 1000;
+  const bucket = authRateState.get(ip) || { count: 0, resetAt: now + windowMs };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + windowMs;
+  }
+  bucket.count += 1;
+  authRateState.set(ip, bucket);
+  return bucket.count > maxAttempts;
+}
+
+function clearAuthRateLimit(ip) {
+  authRateState.delete(ip);
 }
 
 /**
@@ -67,10 +92,15 @@ function basicAuthMiddleware(opts = {}) {
   return (req, res, next) => {
     const expectedUser = process.env.DASHBOARD_USER || 'admin';
     const expectedHash = (process.env.DASHBOARD_PASSWORD_HASH || '').trim();
+    const clientIp = req.socket.remoteAddress || 'unknown';
 
     if (!expectedHash) {
       // Kein Passwort konfiguriert: Dashboard bleibt offen, aber der Server warnt deutlich.
       return next();
+    }
+
+    if (isAuthRateLimited(clientIp)) {
+      return res.status(429).send('Zu viele Login-Anfragen. Bitte kurz warten.');
     }
 
     const authCookie = parseCookies(req.headers.cookie)[AUTH_COOKIE_NAME];
@@ -88,14 +118,17 @@ function basicAuthMiddleware(opts = {}) {
       const pass = decoded.slice(sep + 1);
       if (timingSafeStringEqual(user, expectedUser) && verifyPassword(pass, expectedHash)) {
         const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        const maxAge = getEnvInt('DASHBOARD_AUTH_COOKIE_MAX_AGE_SECONDS', 900);
         const cookieParts = [
           `${AUTH_COOKIE_NAME}=${expectedCookie}`,
           'Path=/',
           'HttpOnly',
           'SameSite=Strict',
+          `Max-Age=${maxAge}`,
         ];
         if (secure) cookieParts.push('Secure');
         res.setHeader('Set-Cookie', cookieParts.join('; '));
+        clearAuthRateLimit(clientIp);
         if (onSuccess) onSuccess(req.socket.remoteAddress);
         return next();
       }
