@@ -6,6 +6,7 @@
  */
 
 const crypto = require('crypto');
+const AUTH_COOKIE_NAME = 'servnix_auth';
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -36,6 +37,26 @@ function timingSafeStringEqual(a, b) {
   return bufA.length === bufB.length && crypto.timingSafeEqual(paddedA, paddedB);
 }
 
+function parseCookies(header) {
+  const raw = String(header || '');
+  return raw
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const idx = part.indexOf('=');
+      if (idx <= 0) return acc;
+      const key = part.slice(0, idx).trim();
+      const value = part.slice(idx + 1).trim();
+      acc[key] = value;
+      return acc;
+    }, {});
+}
+
+function buildAuthCookieValue(user, hash) {
+  return crypto.createHash('sha256').update(`${user}:${hash}`).digest('hex');
+}
+
 /**
  * @param {object} [opts]
  * @param {(ip: string) => void} [opts.onFailure] - wird bei falschem Login aufgerufen (z.B. fuer Bruteforce-Schutz).
@@ -45,10 +66,16 @@ function basicAuthMiddleware(opts = {}) {
   const { onFailure, onSuccess } = opts;
   return (req, res, next) => {
     const expectedUser = process.env.DASHBOARD_USER || 'admin';
-    const expectedHash = process.env.DASHBOARD_PASSWORD_HASH || '';
+    const expectedHash = (process.env.DASHBOARD_PASSWORD_HASH || '').trim();
 
     if (!expectedHash) {
       // Kein Passwort konfiguriert: Dashboard bleibt offen, aber der Server warnt deutlich.
+      return next();
+    }
+
+    const authCookie = parseCookies(req.headers.cookie)[AUTH_COOKIE_NAME];
+    const expectedCookie = buildAuthCookieValue(expectedUser, expectedHash);
+    if (timingSafeStringEqual(authCookie, expectedCookie)) {
       return next();
     }
 
@@ -60,6 +87,15 @@ function basicAuthMiddleware(opts = {}) {
       const user = decoded.slice(0, sep);
       const pass = decoded.slice(sep + 1);
       if (timingSafeStringEqual(user, expectedUser) && verifyPassword(pass, expectedHash)) {
+        const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        const cookieParts = [
+          `${AUTH_COOKIE_NAME}=${expectedCookie}`,
+          'Path=/',
+          'HttpOnly',
+          'SameSite=Strict',
+        ];
+        if (secure) cookieParts.push('Secure');
+        res.setHeader('Set-Cookie', cookieParts.join('; '));
         if (onSuccess) onSuccess(req.socket.remoteAddress);
         return next();
       }

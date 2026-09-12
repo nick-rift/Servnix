@@ -12,6 +12,8 @@ const liveThreats = new Map();
 let securityEventStream = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
+let refreshTimer = null;
+let refreshBlocklistPending = false;
 
 function icon(ok) {
   if (ok === true) return '<span class="status-ok">✅</span>';
@@ -331,8 +333,17 @@ function handleLiveSecurityEvent(event) {
     liveThreats.delete(event.ip);
     renderLiveThreats();
   }
-  loadSecurityEvents();
-  loadBlocklist();
+  refreshBlocklistPending = refreshBlocklistPending || event.type === 'block' || event.type === 'unblock';
+  if (!refreshTimer) {
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null;
+      loadSecurityEvents();
+      if (refreshBlocklistPending) {
+        loadBlocklist();
+        refreshBlocklistPending = false;
+      }
+    }, 1200);
+  }
 }
 
 function scheduleReconnect() {

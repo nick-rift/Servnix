@@ -47,6 +47,7 @@ const PORT = process.env.PORT || 3000;
 // Nur wenn HOST explizit gesetzt wird (z.B. hinter einem eigenen Reverse-Proxy),
 // bindet der Server auf ein anderes Interface.
 const HOST = process.env.HOST || '127.0.0.1';
+const DASHBOARD_PASSWORD_HASH = (process.env.DASHBOARD_PASSWORD_HASH || '').trim();
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const LATEST_SCAN_FILE = path.join(DATA_DIR, 'latest-scan.json');
@@ -56,7 +57,7 @@ function isLocalHostBinding(host) {
   return ['127.0.0.1', 'localhost', '::1', '::ffff:127.0.0.1'].includes(String(host || '').trim().toLowerCase());
 }
 
-if (!isLocalHostBinding(HOST) && !process.env.DASHBOARD_PASSWORD_HASH) {
+if (!isLocalHostBinding(HOST) && !DASHBOARD_PASSWORD_HASH) {
   console.error(
     '❌ Unsichere HOST-Konfiguration blockiert: DASHBOARD_PASSWORD_HASH ist Pflicht,\n' +
     '   wenn HOST nicht localhost/127.0.0.1 ist. Bitte Passwort-Hash setzen,\n' +
@@ -65,7 +66,7 @@ if (!isLocalHostBinding(HOST) && !process.env.DASHBOARD_PASSWORD_HASH) {
   process.exit(1);
 }
 
-if (!process.env.DASHBOARD_PASSWORD_HASH) {
+if (!DASHBOARD_PASSWORD_HASH) {
   console.warn(
     '⚠️  Kein DASHBOARD_PASSWORD_HASH gesetzt - das Dashboard ist ungeschuetzt erreichbar!\n' +
     '   Passwort setzen mit: node server/cli-hash-password.js "DeinPasswort"',
@@ -300,7 +301,7 @@ app.get('/api/security-events/stream', (req, res) => {
 app.get('/api/hardening/status', (req, res) => {
   res.json({
     securityHeaders: true, // helmet ist immer aktiv, siehe oben
-    dashboardAuth: Boolean(process.env.DASHBOARD_PASSWORD_HASH),
+    dashboardAuth: Boolean(DASHBOARD_PASSWORD_HASH),
     loginBruteforceProtection: {
       maxFailures: Number(process.env.DASHBOARD_MAX_LOGIN_FAILURES) || 5,
       windowMinutes: Number(process.env.DASHBOARD_LOGIN_WINDOW_MINUTES) || 10,
