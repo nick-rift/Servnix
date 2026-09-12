@@ -112,7 +112,7 @@ sudo journalctl -u servnix-guard -f     # Live-Logs
 ./scripts/servnix-guard.sh test
 ```
 
-Alle Sperrungen, Entsperrungen und USB-Erkennungen werden protokolliert
+Alle Sperrungen, Entsperrungen, Live-Portscan-Erkennungen und USB-Erkennungen werden protokolliert
 (`server/data/security-events.log`) und sind im Dashboard unter **"Servnix Guard · Blockliste"**
 und **"Security-Events"** einsehbar. Manuelles Sperren/Entsperren einer IP ist dort ebenfalls
 per Klick möglich.
@@ -286,7 +286,7 @@ Servnix Dashboard laeuft auf http://127.0.0.1:3000
 
 ---
 
-## 🖥️ Dashboard aufrufen (nur über localhost, nicht über die Server-IP)
+## 🖥️ Dashboard aufrufen (Standard: localhost, optional öffentlich)
 
 Aus Sicherheitsgründen bindet der Server standardmäßig **nur an `127.0.0.1`** (siehe `HOST` in
 `.env.example`). Das Dashboard ist also **nie** direkt über die öffentliche Server-IP oder eine
@@ -317,10 +317,37 @@ ssh -f -N -L 3000:localhost:3000 <dein-user>@<server-ip>
 ```
 (`-f` schickt SSH in den Hintergrund, `-N` öffnet keine Shell, nur den Tunnel.)
 
-Ein Reverse-Proxy mit eigenem TLS-Zertifikat und eigener Domain ist bewusst **nicht** die
-empfohlene Standardlösung, weil Servnix damit Angriffsfläche im Netz hätte. Wer das trotzdem
-möchte, kann `HOST=0.0.0.0` setzen und selbst einen abgesicherten Reverse-Proxy davorsetzen –
-siehe Warnhinweis dazu in `.env.example`.
+### Optional: öffentlich erreichbar (opt-in, mit eigener Firewall-Absicherung)
+
+Wenn du Servnix bewusst von außen erreichbar machen willst, aktiviere das nur mit
+expliziter Konfiguration:
+
+1. In `.env`:
+   - `HOST=0.0.0.0` (oder konkrete öffentliche Interface-IP)
+   - `PORT=<dein-port>`
+   - `DASHBOARD_PASSWORD_HASH=<bcrypt-hash>` (**Pflicht**, sonst startet der Server nicht)
+2. Firewall-Auto-Modus setzen:
+   - Direktzugriff auf Node-Port:
+     - `SERVNIX_PUBLIC_DASHBOARD_ACCESS=true`
+     - `SERVNIX_PUBLIC_DASHBOARD_USE_REVERSE_PROXY=false`
+     - `SERVNIX_DASHBOARD_PORT=<wie PORT>`
+   - Oder Reverse-Proxy (empfohlen):
+     - `SERVNIX_PUBLIC_DASHBOARD_ACCESS=true`
+     - `SERVNIX_PUBLIC_DASHBOARD_USE_REVERSE_PROXY=true` (öffnet nur 80/443)
+3. Regeln anwenden:
+   ```bash
+   sudo ./scripts/servnix-firewall.sh install
+   sudo ./scripts/servnix-firewall.sh status
+   ```
+
+#### DNS + Router-Portweiterleitung (manuell)
+
+- DNS (eigene Domain oder Dynamic DNS) auf deine öffentliche WAN-IP zeigen lassen.
+- Im Router **nur** die nötigen Ports weiterleiten:
+  - Direktmodus: ausschließlich deinen Dashboard-Port
+  - Reverse-Proxy-Modus: nur 80/443 auf den Server
+- **Kein UPnP/Auto-Freigaben**: Portweiterleitung immer manuell und minimal halten.
+- Die Servnix-Firewall arbeitet weiterhin mit Default-Deny und blockt nicht erlaubte Ports/Traffic.
 
 ---
 
@@ -337,10 +364,11 @@ Kein Mockup – ein reales, per Express ausgeliefertes Web-Interface (`public/`)
 - **OPNsense-Kachel** mit Live-Verbindungsstatus
 - **Firewall-Steuerung** (install/enable/disable/status per Klick)
 - **Servnix Guard · Blockliste** – gesperrte IPs mit Grund/Quelle/Sync-Status, manuelles Sperren/Entsperren per Klick
-- **Security-Events** – Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geräte
+- **Security-Events** – Protokoll aller Sperrungen, Entsperrungen, Live-Portscan-Erkennungen und USB-Geräte
 - **Dashboard-Härtung** – Live-Status von Security-Headern, Login-Bruteforce-Schutz, Rate-Limiting
 
-Alle 30 Sekunden aktualisiert sich der zuletzt gespeicherte Scan automatisch; ein neuer Voll-Scan wird per Button oder `POST /api/scan` ausgelöst.
+Security-Events/Blockliste werden primär live per SSE-Stream (`/api/security-events/stream`)
+aktualisiert (inkl. IP/Port/Port-Anzahl bei laufenden Portscans); das 30-Sekunden-Polling bleibt als Fallback.
 
 ---
 

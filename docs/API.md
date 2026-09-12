@@ -1,7 +1,9 @@
 # API-Referenz
 
-Basis-URL: `http://127.0.0.1:3000` (Server bindet standardmäßig nur an localhost, siehe
+Basis-URL: standardmäßig `http://127.0.0.1:3000` (Server bindet standardmäßig nur an localhost, siehe
 [INSTALLATION.md](INSTALLATION.md) für den SSH-Tunnel-Zugriff von einem entfernten PC aus).
+Optional kann per `HOST`/`PORT` öffentlich gebunden werden; dann muss `DASHBOARD_PASSWORD_HASH`
+gesetzt sein (Start wird sonst serverseitig verweigert).
 Alle Endpunkte sind per HTTP Basic Auth geschützt, sobald `DASHBOARD_PASSWORD_HASH` in `.env` gesetzt ist.
 Alle Endpunkte sind zusätzlich per App-Ebene-Rate-Limiting geschützt (`429` bei zu vielen
 Anfragen, siehe `GET /api/hardening/status`).
@@ -103,6 +105,16 @@ Protokoll aller Sperrungen (`block`), Entsperrungen (`unblock`) und erkannten US
 ]
 ```
 
+### `GET /api/security-events/stream`
+Server-Sent Events (SSE) Live-Stream für neue Security-Events. Event-Typen:
+- `stream-status` (Verbindungsstatus)
+- `security-event` (JSON-Eintrag aus `security-events.log`, z. B. `block`, `unblock`, `usb-detected`, `portscan-activity`)
+
+Beispiel (`curl -N`):
+```bash
+curl -N -u admin:passwort http://127.0.0.1:3000/api/security-events/stream
+```
+
 ## Dashboard-Härtung
 
 ### `GET /api/hardening/status`
@@ -117,5 +129,4 @@ Gibt den tatsächlich aktiven Schutzstatus der Dashboard-App zurück (keine Fake
   "hostBinding": "127.0.0.1"
 }
 ```
-
 

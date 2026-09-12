@@ -12,7 +12,8 @@
 #     Angreifer-IPs automatisch erkannt und in "blackhole_v4" gesperrt werden
 #   - Blockliste (Set "blackhole_v4"): IPs, die der Servnix-Guard oder das
 #     Dashboard manuell sperrt, landen hier und werden am INPUT sofort verworfen
-#   - Nur SSH/HTTP/HTTPS standardmaessig offen, alles andere per SERVNIX_ALLOW_PORTS steuerbar
+#   - Opt-in Oeffnung fuer Dashboard-Ports bei oeffentlicher Erreichbarkeit
+#   - Alles andere bleibt per Default-Deny gesperrt
 #
 # Nutzung:
 #   sudo ./scripts/servnix-firewall.sh install   # Regeln einmalig anlegen + persistieren
@@ -21,15 +22,33 @@
 #   sudo ./scripts/servnix-firewall.sh status    # zeigt das aktive Regelwerk
 #
 # Umgebungsvariablen:
-#   SERVNIX_ALLOW_TCP_PORTS="22,80,443"   zusaetzliche/abweichende TCP-Ports
+#   SERVNIX_ALLOW_TCP_PORTS="22,80,443"   explizite TCP-Portliste (ueberschreibt Auto-Modus)
 #   SERVNIX_SSH_PORT="22"                 SSH-Port (wird strenger rate-limitiert)
+#   SERVNIX_PUBLIC_DASHBOARD_ACCESS=true  oeffnet zusaetzlich Dashboard-Port oder 80/443
+#   SERVNIX_PUBLIC_DASHBOARD_USE_REVERSE_PROXY=true  statt Dashboard-Port nur 80/443 freigeben
+#   SERVNIX_DASHBOARD_PORT=3000           Dashboard-Port im Direktmodus (Fallback: PORT/.env)
 ###############################################################################
 
 set -euo pipefail
 
 TABLE="servnix_fw"
-ALLOW_TCP_PORTS="${SERVNIX_ALLOW_TCP_PORTS:-22,80,443}"
 SSH_PORT="${SERVNIX_SSH_PORT:-22}"
+PUBLIC_DASHBOARD_ACCESS="${SERVNIX_PUBLIC_DASHBOARD_ACCESS:-false}"
+PUBLIC_DASHBOARD_USE_REVERSE_PROXY="${SERVNIX_PUBLIC_DASHBOARD_USE_REVERSE_PROXY:-false}"
+DASHBOARD_PORT="${SERVNIX_DASHBOARD_PORT:-${PORT:-3000}}"
+
+if [ -n "${SERVNIX_ALLOW_TCP_PORTS:-}" ]; then
+  ALLOW_TCP_PORTS="${SERVNIX_ALLOW_TCP_PORTS}"
+else
+  ALLOW_TCP_PORTS="${SSH_PORT}"
+  if [ "${PUBLIC_DASHBOARD_ACCESS}" = "true" ]; then
+    if [ "${PUBLIC_DASHBOARD_USE_REVERSE_PROXY}" = "true" ]; then
+      ALLOW_TCP_PORTS="${ALLOW_TCP_PORTS},80,443"
+    else
+      ALLOW_TCP_PORTS="${ALLOW_TCP_PORTS},${DASHBOARD_PORT}"
+    fi
+  fi
+fi
 
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
@@ -110,6 +129,7 @@ cmd_install() {
   require_root
   require_nft
   echo "→ Erzeuge Servnix-Firewall-Regelwerk (Tabelle: ${TABLE})..."
+  echo "→ Erlaubte TCP-Ports: ${ALLOW_TCP_PORTS}"
   build_ruleset > /tmp/servnix_fw.nft
   nft -f /tmp/servnix_fw.nft
   rm -f /tmp/servnix_fw.nft

@@ -10,6 +10,7 @@
 <header class="topbar">
   <div class="brand">⚡ SERVNIX <span>Security Dashboard</span></div>
   <div class="actions">
+    <span class="live-pill"><span id="liveStatusBadge">OFFLINE</span><span id="liveStatusText" class="muted">Live-Stream wird aufgebaut…</span></span>
     <span id="lastScan" class="muted">Noch kein Scan</span>
     <button id="scanBtn">🔍 Scan jetzt ausführen</button>
   </div>
@@ -102,6 +103,17 @@
       </div>
     </div>
 
+    <div class="card card-live" id="card-live-threats">
+      <h2>🔴 Live-Portscan-Feed</h2>
+      <div class="body">
+        <p class="muted">Echte, laufende Guard-Erkennung aus nftables-Kernel-Logs (keine Demo-Daten).</p>
+        <table class="data-table">
+          <thead><tr><th>IP</th><th>Port</th><th>Scan-Ports</th><th>Zuletzt</th></tr></thead>
+          <tbody id="liveThreatsBody"><tr><td colspan="4" class="status-ok">Keine aktiven Bedrohungen</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="card" id="card-guard">
       <h2>🛡️ Servnix Guard · Blockliste</h2>
       <div class="body">
@@ -125,7 +137,7 @@
     <div class="card" id="card-security-events">
       <h2>📜 Security-Events</h2>
       <div class="body">
-        <p class="muted">Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geraete.</p>
+        <p class="muted">Live-Protokoll aller Sperrungen, Entsperrungen, Portscan-Events und USB-Erkennungen.</p>
         <ul id="securityEventsList"><li class="muted">Lade Ereignisse…</li></ul>
       </div>
     </div>

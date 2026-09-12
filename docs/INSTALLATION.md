@@ -35,7 +35,9 @@ Die restlichen Härtungsmaßnahmen (Security-Header, Login-Bruteforce-Schutz, Ra
 Slowloris-Timeouts) sind **immer aktiv**, ohne dass du etwas dafür konfigurieren musst - nur die
 Schwellenwerte lassen sich über `DASHBOARD_MAX_LOGIN_FAILURES`, `DASHBOARD_LOGIN_WINDOW_MINUTES`,
 `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_SECONDS` und
-`RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK` in `.env` anpassen (siehe `.env.example`).
+`RATE_LIMIT_MAX_VIOLATIONS_BEFORE_BLOCK` sowie den Auth-Schutz (`DASHBOARD_AUTH_RATE_MAX_ATTEMPTS`,
+`DASHBOARD_AUTH_RATE_WINDOW_SECONDS`, `DASHBOARD_AUTH_COOKIE_MAX_AGE_SECONDS`) in `.env` anpassen
+(siehe `.env.example`).
 
 ### Servnix-Firewall einrichten (empfohlen)
 
@@ -168,6 +170,27 @@ Danach im Browser auf deinem PC: `http://localhost:3000`.
 Nur wenn du bewusst einen eigenen, abgesicherten Reverse-Proxy (mit TLS + eigener Auth) davor
 betreiben willst, setze `HOST=0.0.0.0` in `.env` und exponiere ausschließlich den Reverse-Proxy,
 nie den Node-Prozess direkt.
+
+### Optional: öffentlicher Zugriff (opt-in)
+
+Wenn du das Dashboard bewusst von außen erreichbar machen willst:
+
+1. In `.env`:
+   - `HOST=0.0.0.0` (oder öffentliche Interface-IP)
+   - `PORT=<dashboard-port>`
+   - `DASHBOARD_PASSWORD_HASH=<bcrypt-hash>` (**Pflicht**, sonst verweigert der Server den Start)
+2. Firewall-Auto-Modus aktivieren:
+   - Direktzugriff: `SERVNIX_PUBLIC_DASHBOARD_ACCESS=true`, `SERVNIX_PUBLIC_DASHBOARD_USE_REVERSE_PROXY=false`, `SERVNIX_DASHBOARD_PORT=<dashboard-port>`
+   - Reverse-Proxy: `SERVNIX_PUBLIC_DASHBOARD_ACCESS=true`, `SERVNIX_PUBLIC_DASHBOARD_USE_REVERSE_PROXY=true` (öffnet 80/443)
+3. Regeln anwenden:
+   ```bash
+   sudo ./scripts/servnix-firewall.sh install
+   sudo ./scripts/servnix-firewall.sh status
+   ```
+4. DNS/Router manuell einrichten:
+   - A/AAAA-Record (oder Dynamic DNS) auf WAN-IP setzen
+   - Router-Portweiterleitung nur für benötigte Ports einrichten (Direktmodus: Dashboard-Port, Proxy-Modus: 80/443)
+   - Kein UPnP/automatische Portfreigaben verwenden
 
 ### Ersten Scan ausführen
 
