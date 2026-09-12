@@ -7,6 +7,11 @@
  */
 
 const $ = (sel) => document.querySelector(sel);
+const LIVE_THREAT_TTL_MS = 120000;
+const liveThreats = new Map();
+let securityEventStream = null;
+let reconnectTimer = null;
+let reconnectAttempt = 0;
 
 function icon(ok) {
   if (ok === true) return '<span class="status-ok">✅</span>';
@@ -261,14 +266,114 @@ async function loadSecurityEvents() {
     list.innerHTML = events
       .map((e) => {
         const time = new Date(e.timestamp).toLocaleString('de-DE');
-        const typeLabel = { block: '🚫 Gesperrt', unblock: '✅ Entsperrt', 'usb-detected': '🔌 USB-Geraet' }[e.type] || e.type;
-        const detail = e.ip ? `${e.ip} - ${e.reason || ''}` : (e.detail || '');
+        const typeLabel = {
+          block: '🚫 Gesperrt',
+          unblock: '✅ Entsperrt',
+          'usb-detected': '🔌 USB-Geraet',
+          'portscan-activity': '📡 Portscan aktiv',
+        }[e.type] || e.type;
+        const detail = e.type === 'portscan-activity'
+          ? `${e.ip} - Port ${e.port || 'unbekannt'} - ${e.scannedPorts || 0} Ports`
+          : (e.ip ? `${e.ip} - ${e.reason || ''}` : (e.detail || ''));
         return `<li><span class="muted">${time}</span> ${typeLabel}: ${detail}</li>`;
       })
       .join('');
   } catch (err) {
     list.innerHTML = `<li class="muted">Fehler: ${err.message}</li>`;
   }
+}
+
+function renderLiveThreats() {
+  const body = $('#liveThreatsBody');
+  if (!body) return;
+  const entries = Array.from(liveThreats.values()).sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  if (entries.length === 0) {
+    body.innerHTML = '<tr><td colspan="4" class="status-ok">Keine aktiven Bedrohungen</td></tr>';
+    return;
+  }
+  body.innerHTML = entries
+    .map((event) => `
+      <tr>
+        <td>${event.ip}</td>
+        <td>${event.port || '–'}</td>
+        <td>${event.scannedPorts || 0}</td>
+        <td>${new Date(event.timestamp || Date.now()).toLocaleTimeString('de-DE')}</td>
+      </tr>`)
+    .join('');
+}
+
+function pruneLiveThreats() {
+  const now = Date.now();
+  for (const [ip, event] of liveThreats.entries()) {
+    if (now - (event.lastSeen || 0) > LIVE_THREAT_TTL_MS) {
+      liveThreats.delete(ip);
+    }
+  }
+  renderLiveThreats();
+}
+
+function setStreamStatus(connected, text) {
+  const badge = $('#liveStatusBadge');
+  const hint = $('#liveStatusText');
+  if (!badge || !hint) return;
+  badge.classList.toggle('offline', !connected);
+  badge.textContent = connected ? 'LIVE' : 'OFFLINE';
+  hint.textContent = text;
+}
+
+function handleLiveSecurityEvent(event) {
+  if (!event || typeof event !== 'object') return;
+  if (event.type === 'portscan-activity' && event.ip) {
+    liveThreats.set(event.ip, { ...event, lastSeen: Date.now() });
+    renderLiveThreats();
+  }
+  if (event.type === 'block' && event.ip) {
+    liveThreats.delete(event.ip);
+    renderLiveThreats();
+  }
+  loadSecurityEvents();
+  loadBlocklist();
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  const delay = Math.min(30000, 1000 * (2 ** reconnectAttempt));
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectSecurityEventStream();
+  }, delay);
+}
+
+function connectSecurityEventStream() {
+  if (securityEventStream) {
+    securityEventStream.close();
+  }
+  const stream = new EventSource('/api/security-events/stream');
+  securityEventStream = stream;
+  setStreamStatus(false, 'Verbinde Live-Stream…');
+
+  stream.addEventListener('stream-status', () => {
+    reconnectAttempt = 0;
+    setStreamStatus(true, 'Live-Verbindung aktiv');
+  });
+
+  stream.addEventListener('security-event', (message) => {
+    reconnectAttempt = 0;
+    setStreamStatus(true, 'Live-Verbindung aktiv');
+    try {
+      const event = JSON.parse(message.data);
+      handleLiveSecurityEvent(event);
+    } catch {
+      /* ignorieren */
+    }
+  });
+
+  stream.onerror = () => {
+    setStreamStatus(false, 'Live-Verbindung unterbrochen – Reconnect läuft…');
+    reconnectAttempt += 1;
+    stream.close();
+    scheduleReconnect();
+  };
 }
 
 function bindBlockForm() {
@@ -306,6 +411,7 @@ async function loadHardeningStatus() {
       kv('App-Rate-Limiting', `${icon(true)} ${s.rateLimiting.maxRequests} Req. / ${s.rateLimiting.windowSeconds}s`),
       kv('Guard-Allowlist gesetzt', icon(s.guardAllowlistConfigured)),
       kv('Host-Bindung', s.hostBinding),
+      kv('Öffentliche Bindung aktiv', icon(s.publicBinding)),
     ].join('') + (s.hostBinding === '127.0.0.1' || s.hostBinding === 'localhost'
       ? '<p class="hint hint-spaced">Hinweis: Über den SSH-Tunnel sieht das Dashboard jeden Zugriff als 127.0.0.1 - die Login-Bruteforce-Sperre schützt daher primär bei abweichender HOST-Konfiguration (z.B. hinter einem eigenen Reverse-Proxy). Auf dem SSH-Zugang selbst schützt stattdessen der Servnix Guard / fail2ban.</p>'
       : '');
@@ -322,6 +428,9 @@ loadOpnsense();
 loadBlocklist();
 loadSecurityEvents();
 loadHardeningStatus();
+connectSecurityEventStream();
+renderLiveThreats();
+setInterval(pruneLiveThreats, 5000);
 setInterval(loadLatest, 30000);
 setInterval(loadBlocklist, 30000);
 setInterval(loadSecurityEvents, 30000);

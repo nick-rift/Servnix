@@ -101,7 +101,8 @@ kontaktiere den Maintainer direkt über die im Profil hinterlegten Kanäle.
 
 ## Best Practices für den Betrieb
 
-- Dashboard-Passwort setzen (`node server/cli-hash-password.js`), sonst ist es offen.
+- Dashboard-Passwort setzen (`node server/cli-hash-password.js`). Bei öffentlicher `HOST`-Bindung
+  verweigert der Server den Start ohne `DASHBOARD_PASSWORD_HASH`.
 - `.env` niemals committen (steht in `.gitignore`).
 - Server bindet standardmäßig nur an `127.0.0.1` – Zugriff von außen per SSH-Tunnel, nicht per
   öffentlicher IP/Domain. `HOST=0.0.0.0` nur setzen, wenn ein eigener, abgesicherter

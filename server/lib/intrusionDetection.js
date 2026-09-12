@@ -82,11 +82,21 @@ async function readRecentScanAttempts(windowMinutes) {
     const dptMatch = line.match(/DPT=(\d+)/);
     if (srcMatch && dptMatch) {
       const ip = srcMatch[1];
-      if (!ipPorts[ip]) ipPorts[ip] = new Set();
-      ipPorts[ip].add(dptMatch[1]);
+      if (!ipPorts[ip]) ipPorts[ip] = { ports: new Set(), lastPort: null };
+      ipPorts[ip].ports.add(dptMatch[1]);
+      ipPorts[ip].lastPort = dptMatch[1];
     }
   }
-  return Object.fromEntries(Object.entries(ipPorts).map(([ip, ports]) => [ip, ports.size]));
+  return Object.fromEntries(
+    Object.entries(ipPorts).map(([ip, info]) => [
+      ip,
+      {
+        distinctPorts: info.ports.size,
+        ports: Array.from(info.ports),
+        lastPort: info.lastPort,
+      },
+    ]),
+  );
 }
 
 /**
@@ -107,6 +117,7 @@ async function detectThreats() {
   ]);
 
   const threats = [];
+  const scanActivities = [];
 
   for (const [ip, count] of Object.entries(sshFailures)) {
     if (allowlist.includes(ip)) continue;
@@ -119,8 +130,17 @@ async function detectThreats() {
     }
   }
 
-  for (const [ip, distinctPorts] of Object.entries(scanAttempts)) {
+  for (const [ip, scanInfo] of Object.entries(scanAttempts)) {
+    const distinctPorts = scanInfo.distinctPorts || 0;
     if (allowlist.includes(ip)) continue;
+    if (distinctPorts > 0) {
+      scanActivities.push({
+        ip,
+        distinctPorts,
+        ports: scanInfo.ports || [],
+        lastPort: scanInfo.lastPort || null,
+      });
+    }
     if (distinctPorts >= scanThreshold) {
       threats.push({
         ip,
@@ -130,7 +150,7 @@ async function detectThreats() {
     }
   }
 
-  return threats;
+  return { threats, scanActivities, scanWindow };
 }
 
 module.exports = { detectThreats, readRecentSshFailures, readRecentScanAttempts };

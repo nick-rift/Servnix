@@ -50,6 +50,20 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const LATEST_SCAN_FILE = path.join(DATA_DIR, 'latest-scan.json');
+const SECURITY_EVENTS_FILE = path.join(DATA_DIR, 'security-events.log');
+
+function isLocalHostBinding(host) {
+  return ['127.0.0.1', 'localhost', '::1', '::ffff:127.0.0.1'].includes(String(host || '').trim().toLowerCase());
+}
+
+if (!isLocalHostBinding(HOST) && !process.env.DASHBOARD_PASSWORD_HASH) {
+  console.error(
+    '❌ Unsichere HOST-Konfiguration blockiert: DASHBOARD_PASSWORD_HASH ist Pflicht,\n' +
+    '   wenn HOST nicht localhost/127.0.0.1 ist. Bitte Passwort-Hash setzen,\n' +
+    '   z.B. mit: node server/cli-hash-password.js "DeinPasswort"',
+  );
+  process.exit(1);
+}
 
 if (!process.env.DASHBOARD_PASSWORD_HASH) {
   console.warn(
@@ -57,6 +71,65 @@ if (!process.env.DASHBOARD_PASSWORD_HASH) {
     '   Passwort setzen mit: node server/cli-hash-password.js "DeinPasswort"',
   );
 }
+
+const securityEventClients = new Set();
+let securityEventsReadOffset = fs.existsSync(SECURITY_EVENTS_FILE) ? fs.statSync(SECURITY_EVENTS_FILE).size : 0;
+let securityEventsPartial = '';
+
+function sendSseEvent(client, eventName, payload) {
+  client.write(`event: ${eventName}\n`);
+  client.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function broadcastSecurityEvent(payload) {
+  for (const client of securityEventClients) {
+    sendSseEvent(client, 'security-event', payload);
+  }
+}
+
+function readNewSecurityEvents() {
+  try {
+    if (!fs.existsSync(SECURITY_EVENTS_FILE)) return [];
+    const stat = fs.statSync(SECURITY_EVENTS_FILE);
+    if (stat.size < securityEventsReadOffset) {
+      securityEventsReadOffset = 0;
+      securityEventsPartial = '';
+    }
+    if (stat.size === securityEventsReadOffset) return [];
+
+    const fd = fs.openSync(SECURITY_EVENTS_FILE, 'r');
+    const len = stat.size - securityEventsReadOffset;
+    const buffer = Buffer.alloc(len);
+    fs.readSync(fd, buffer, 0, len, securityEventsReadOffset);
+    fs.closeSync(fd);
+    securityEventsReadOffset = stat.size;
+
+    const chunk = securityEventsPartial + buffer.toString('utf8');
+    const lines = chunk.split('\n');
+    securityEventsPartial = lines.pop() || '';
+
+    return lines
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+setInterval(() => {
+  const events = readNewSecurityEvents();
+  for (const event of events) {
+    broadcastSecurityEvent(event);
+  }
+}, 1000).unref();
 
 // Gesperrte IPs werden schon hier abgewiesen (vor Auth/Statics) - so sieht ein
 // bereits gesperrter Angreifer noch nicht mal die Login-Abfrage.
@@ -202,6 +275,25 @@ app.get('/api/security-events', (req, res) => {
   res.json(blocklist.listEvents(limit));
 });
 
+app.get('/api/security-events/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+  res.write('retry: 3000\n\n');
+  sendSseEvent(res, 'stream-status', { connected: true, timestamp: new Date().toISOString() });
+
+  securityEventClients.add(res);
+  const keepAlive = setInterval(() => {
+    res.write(': keep-alive\n\n');
+  }, 15000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    securityEventClients.delete(res);
+  });
+});
+
 // --- API: Haertungsstatus (fuer die neue Dashboard-Karte, keine Fake-Werte) ---
 
 app.get('/api/hardening/status', (req, res) => {
@@ -218,15 +310,18 @@ app.get('/api/hardening/status', (req, res) => {
     },
     guardAllowlistConfigured: Boolean(process.env.GUARD_ALLOWLIST),
     hostBinding: HOST,
+    publicBinding: !isLocalHostBinding(HOST),
   });
 });
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`Servnix Dashboard laeuft auf http://${HOST}:${PORT}`);
-  if (HOST === '127.0.0.1' || HOST === 'localhost') {
+  if (isLocalHostBinding(HOST)) {
     console.log('→ Nur lokal erreichbar (Sicherheitsvorgabe). Zugriff von deinem PC per SSH-Tunnel:');
     console.log(`   ssh -L ${PORT}:localhost:${PORT} <user>@<server-ip>`);
     console.log(`   Danach im Browser: http://localhost:${PORT}`);
+  } else {
+    console.log('⚠️  Oeffentliche Bindung aktiv. Stelle sicher, dass nur notwendige Ports in der Firewall freigegeben sind.');
   }
   console.log(`Ersten Scan ausloesen mit: curl -u <user>:<passwort> -X POST http://${HOST}:${PORT}/api/scan`);
 });
@@ -237,4 +332,3 @@ const server = app.listen(PORT, HOST, () => {
 server.headersTimeout = 15000; // Zeit fuer vollstaendige Header
 server.requestTimeout = 30000; // Zeit fuer die gesamte Anfrage
 server.keepAliveTimeout = 5000; // wie lange Keep-Alive-Verbindungen offen bleiben
-

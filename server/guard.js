@@ -29,8 +29,48 @@ function getEnvInt(name, fallback) {
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
+const lastScanProgressByIp = new Map();
+
+function logLivePortscanActivities(scanActivities, scanWindow) {
+  const now = Date.now();
+  const activeIps = new Set();
+
+  for (const activity of scanActivities) {
+    const ip = activity.ip;
+    const distinctPorts = Number(activity.distinctPorts) || 0;
+    if (!ip || distinctPorts <= 0) continue;
+    activeIps.add(ip);
+
+    const prev = lastScanProgressByIp.get(ip) || { distinctPorts: 0 };
+    if (distinctPorts > prev.distinctPorts) {
+      const newPort = activity.lastPort || null;
+      logEvent({
+        type: 'portscan-activity',
+        ip,
+        source: 'guard-portscan',
+        reason: `Portscan-Aktivitaet: ${distinctPorts} verschiedene Ports in ${scanWindow} Minuten`,
+        scannedPorts: distinctPorts,
+        port: newPort,
+      });
+    }
+
+    lastScanProgressByIp.set(ip, { distinctPorts, seenAt: now });
+  }
+
+  for (const [ip, info] of lastScanProgressByIp.entries()) {
+    const stale = now - (info.seenAt || 0) > scanWindow * 60 * 1000;
+    if (!activeIps.has(ip) && stale) {
+      lastScanProgressByIp.delete(ip);
+    }
+  }
+}
+
 async function runOnce() {
-  const threats = await detectThreats();
+  const detection = await detectThreats();
+  const threats = detection.threats || [];
+  const scanActivities = detection.scanActivities || [];
+  const scanWindow = detection.scanWindow || getEnvInt('GUARD_PORTSCAN_WINDOW_MINUTES', 5);
+  logLivePortscanActivities(scanActivities, scanWindow);
 
   if (process.env.WEBGUARD_ENABLE !== 'false') {
     // Web-Angriffserkennung ist synchron (liest nur lokale Logdateien),
