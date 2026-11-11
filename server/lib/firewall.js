@@ -5,9 +5,22 @@
  * Unterstuetzt die Servnix-eigene nftables-Firewall (siehe scripts/servnix-firewall.sh),
  * ufw und rohes nftables/iptables als Fallback. Es wird NICHTS vorgetaeuscht:
  * wenn kein Regelwerk aktiv ist, wird das auch so gemeldet.
+ *
+ * Statuswerte:
+ *   active: true   -> Regelwerk nachweislich geladen
+ *   active: false  -> Regelwerk nachweislich NICHT geladen
+ *   active: null   -> unbekannt (z. B. keine Berechtigung, Root erforderlich)
  */
 
 const { run, commandExists } = require('./exec');
+
+/** Erkennt typische Berechtigungsfehler in stderr/error eines run()-Ergebnisses. */
+function isPermissionError(res) {
+  const text = `${res.stderr || ''} ${res.error || ''}`;
+  return /permission denied|operation not permitted|you need to be root|must be run as root|not permitted|EACCES|EPERM/i.test(
+    text
+  );
+}
 
 async function getServnixNftStatus() {
   const hasNft = await commandExists('nft');
@@ -15,6 +28,13 @@ async function getServnixNftStatus() {
 
   const res = await run('nft', ['list', 'table', 'inet', 'servnix_fw']);
   if (!res.ok) {
+    if (isPermissionError(res)) {
+      return {
+        active: null,
+        permissionDenied: true,
+        reason: 'Keine Berechtigung, nftables abzufragen (Root erforderlich)',
+      };
+    }
     return { active: false, reason: 'Servnix-Firewall-Tabelle "servnix_fw" nicht geladen' };
   }
   const rules = res.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -35,13 +55,40 @@ async function getUfwStatus() {
   const hasUfw = await commandExists('ufw');
   if (!hasUfw) return { available: false };
   const res = await run('ufw', ['status', 'verbose']);
-  if (!res.ok) return { available: true, error: res.error || res.stderr };
+  if (!res.ok) {
+    if (isPermissionError(res)) {
+      return {
+        available: true,
+        active: null,
+        permissionDenied: true,
+        error: 'Keine Berechtigung, ufw abzufragen (Root erforderlich)',
+      };
+    }
+    return { available: true, active: null, error: res.error || res.stderr };
+  }
   const active = /Status:\s*active/i.test(res.stdout);
   const rules = res.stdout
     .split('\n')
     .filter((l) => /ALLOW|DENY|REJECT|LIMIT/.test(l))
     .map((l) => l.trim());
   return { available: true, active, rules, raw: res.stdout };
+}
+
+/**
+ * Zerlegt eine ss-Lokaladresse in Host und Port.
+ * Beispiele: "0.0.0.0:22", "[::]:443", "*:80", "127.0.0.1:3306",
+ *            "[::1]:631", "127.0.0.53%lo:53" (systemd-resolved)
+ */
+function parseLocalAddress(localAddr) {
+  const match = localAddr.match(/^(.*):(\d+)$/);
+  if (!match) return null;
+  return { host: match[1], port: Number(match[2]) };
+}
+
+/** True, wenn die Adresse nur auf Loopback lauscht und damit von aussen nicht erreichbar ist. */
+function isLoopbackAddress(host) {
+  const h = host.replace(/^\[|\]$/g, '').split('%')[0];
+  return h === '::1' || h === 'localhost' || /^127\./.test(h);
 }
 
 async function getOpenPorts() {
@@ -58,26 +105,58 @@ async function getOpenPorts() {
       const cols = line.split(/\s+/);
       const proto = cols[0];
       const localAddr = cols[4] || '';
-      const match = localAddr.match(/:(\d+)$/);
+      const parsed = parseLocalAddress(localAddr);
+      if (!parsed) return null;
       return {
         proto,
         address: localAddr,
-        port: match ? Number(match[1]) : null,
+        port: parsed.port,
+        loopback: isLoopbackAddress(parsed.host),
       };
     })
-    .filter((p) => p.port !== null);
+    .filter(Boolean);
 
   const expected = new Set([22, 80, 443]);
-  const unexpected = ports.filter((p) => !expected.has(p.port));
 
-  return { available: true, ports, unexpectedCount: unexpected.length, unexpected };
+  // Nur extern erreichbare Sockets zaehlen als "unerwartet"; Loopback wird separat ausgewiesen.
+  const external = ports.filter((p) => !p.loopback);
+  const loopbackOnly = ports.filter((p) => p.loopback);
+
+  // Dedupe: derselbe Port auf 0.0.0.0 und [::] soll nur einmal gemeldet werden.
+  const seen = new Set();
+  const unexpected = external.filter((p) => {
+    if (expected.has(p.port)) return false;
+    const key = `${p.proto}:${p.port}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return {
+    available: true,
+    ports,
+    external,
+    loopbackOnly,
+    unexpectedCount: unexpected.length,
+    unexpected,
+  };
 }
 
 async function getFail2banStatus() {
   const hasF2b = await commandExists('fail2ban-client');
   if (!hasF2b) return { available: false, reason: 'fail2ban-client nicht installiert' };
   const status = await run('fail2ban-client', ['status']);
-  if (!status.ok) return { available: true, running: false, error: status.stderr || status.error };
+  if (!status.ok) {
+    if (isPermissionError(status)) {
+      return {
+        available: true,
+        running: null,
+        permissionDenied: true,
+        error: 'Keine Berechtigung, fail2ban abzufragen (Root erforderlich)',
+      };
+    }
+    return { available: true, running: false, error: status.stderr || status.error };
+  }
   const jailsLine = status.stdout.split('\n').find((l) => l.includes('Jail list'));
   const jails = jailsLine
     ? jailsLine.split(':')[1].split(',').map((j) => j.trim()).filter(Boolean)
@@ -114,7 +193,10 @@ async function scanFirewall() {
     getFail2banStatus(),
     getDdosMitigationStatus(),
   ]);
-  return { servnix, ufw, ports, fail2ban, ddos };
+  const permissionDenied = Boolean(
+    servnix.permissionDenied || ufw.permissionDenied || fail2ban.permissionDenied
+  );
+  return { servnix, ufw, ports, fail2ban, ddos, permissionDenied };
 }
 
 module.exports = {
@@ -124,4 +206,6 @@ module.exports = {
   getOpenPorts,
   getFail2banStatus,
   getDdosMitigationStatus,
+  isPermissionError,
+  isLoopbackAddress,
 };
