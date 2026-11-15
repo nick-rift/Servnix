@@ -103,6 +103,38 @@ Protokoll aller Sperrungen (`block`), Entsperrungen (`unblock`) und erkannten US
 ]
 ```
 
+## SSH-Echtzeit
+
+### `GET /api/ssh/events?limit=300`
+Strukturierte SSH-Ereignisse aus `journalctl` (Fallback `/var/log/auth.log`, `/var/log/secure`)
+der letzten `SSH_LIVE_WINDOW_MINUTES` (Standard 24h), neueste zuerst, plus Statistik
+(`counts`, `uniqueIps`, `topIps`, `topUsers`, `timeline` je Stunde) und optionaler Geodaten.
+```json
+{
+  "events": [{ "ts": 1763208000000, "type": "failed", "method": "password", "user": "root", "ip": "203.0.113.5", "port": 5122 }],
+  "stats": { "counts": { "accepted": 2, "failed": 120, "invalid": 40, "closed": 9 }, "uniqueIps": 17, "topIps": [], "topUsers": [], "timeline": [] },
+  "geo": { "203.0.113.5": { "country": "…", "countryCode": "XX", "city": "…", "org": "…" } },
+  "source": "journalctl",
+  "warning": null
+}
+```
+`type` ∈ `accepted | failed | invalid | closed` (Pre-Auth-Abbruch).
+
+### `GET /api/ssh/sessions`
+Aktive Sitzungen (`who`): `{ "available": true, "sessions": [{ "user", "tty", "since", "from" }] }`
+
+### `GET /api/ssh/geo?ips=1.2.3.4,5.6.7.8`
+Geolokalisierung oeffentlicher IPs ueber ip-api.com (gecacht, mit `GEO_LOOKUP=false` abschaltbar;
+private IPs werden nie nach aussen gesendet).
+
+### `GET /api/live` (Server-Sent Events)
+Ein dauerhafter Stream fuer das Dashboard. Events:
+- `ssh` – neue SSH-Ereignisse (`{ events, geo, source, warning, initial }`)
+- `stats` – aktualisierte 24h-Statistik
+- `blocklist` – `{ blocked, events }` sobald sich Blockliste oder Security-Events aendern
+- `pulse` – alle `SSH_LIVE_INTERVAL_SECONDS` (Standard 4s): Load, RAM, Uptime, Hostname, aktive Sitzungen
+- `error` – Fehlermeldung aus dem Stream
+
 ## Dashboard-Härtung
 
 ### `GET /api/hardening/status`
@@ -117,5 +149,4 @@ Gibt den tatsächlich aktiven Schutzstatus der Dashboard-App zurück (keine Fake
   "hostBinding": "127.0.0.1"
 }
 ```
-
 
