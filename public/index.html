@@ -3,70 +3,181 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Servnix Dashboard</title>
+<title>Servnix · Security Operations</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 4 7v9c0 7.5 5.1 12.6 12 14 6.9-1.4 12-6.5 12-14V7z' fill='%2300f0a8'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-glow" aria-hidden="true"></div>
+
 <header class="topbar">
-  <div class="brand">⚡ SERVNIX <span>Security Dashboard</span></div>
+  <div class="brand">
+    <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 2 4 7v9c0 7.5 5.1 12.6 12 14 6.9-1.4 12-6.5 12-14V7z" />
+      <path class="brand-bolt" d="M17.5 9 12 17h4l-1.5 6L20 15h-4z" />
+    </svg>
+    <div>
+      <div class="brand-name">SERVNIX</div>
+      <div class="brand-sub">Security Operations Center</div>
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <div class="live-pill" id="livePill">
+      <span class="live-dot"></span>
+      <span id="liveLabel">Verbinde…</span>
+    </div>
+    <div class="host-pill"><span class="muted">Host</span> <strong id="hostName">–</strong></div>
+    <div class="host-pill"><span class="muted">Uhrzeit</span> <strong id="clock">--:--:--</strong></div>
+  </div>
+
   <div class="actions">
-    <span id="lastScan" class="muted">Noch kein Scan</span>
-    <button id="scanBtn">🔍 Scan jetzt ausführen</button>
+    <span id="lastScan" class="muted small">Noch kein Scan</span>
+    <button id="scanBtn" class="btn btn-primary">
+      <span class="btn-icon">⟳</span> Scan ausführen
+    </button>
   </div>
 </header>
 
 <main>
-  <section class="score-card">
-    <div class="score-ring">
-      <div id="scoreValue">–</div>
-      <div class="score-label">/ 10</div>
+  <!-- ===== HERO: Kennzahlen + Score ===== -->
+  <section class="hero">
+    <div class="stat-tile tile-danger">
+      <div class="stat-label">Fehlgeschlagene SSH-Logins · 24h</div>
+      <div class="stat-value" id="statFailed">0</div>
+      <div class="stat-foot"><span id="statFailedRate">–</span> pro Stunde Ø</div>
+      <div class="stat-spark" id="sparkFailed"></div>
     </div>
-    <div class="score-findings">
-      <h3>Offene Punkte</h3>
-      <ul id="findingsList"><li class="muted">Noch keine Daten. Scan starten.</li></ul>
+    <div class="stat-tile tile-warn">
+      <div class="stat-label">Angreifer-IPs · 24h</div>
+      <div class="stat-value" id="statIps">0</div>
+      <div class="stat-foot"><span id="statCountries">–</span> Länder</div>
+    </div>
+    <div class="stat-tile tile-ok">
+      <div class="stat-label">Erfolgreiche Logins · 24h</div>
+      <div class="stat-value" id="statAccepted">0</div>
+      <div class="stat-foot"><span id="statSessions">0</span> aktive Sitzungen</div>
+    </div>
+    <div class="stat-tile tile-info">
+      <div class="stat-label">Gesperrte IPs</div>
+      <div class="stat-value" id="statBlocked">0</div>
+      <div class="stat-foot"><span id="statBlockedToday">0</span> heute neu</div>
+    </div>
+
+    <div class="score-card">
+      <div class="score-ring-wrap">
+        <svg class="score-ring" viewBox="0 0 120 120">
+          <circle class="ring-bg" cx="60" cy="60" r="52" />
+          <circle class="ring-fg" id="ringFg" cx="60" cy="60" r="52" />
+        </svg>
+        <div class="score-center">
+          <div id="scoreValue">–</div>
+          <div class="score-label">Security Score</div>
+        </div>
+      </div>
+      <div class="score-findings">
+        <h3>Offene Punkte</h3>
+        <ul id="findingsList"><li class="muted">Noch keine Daten – Scan starten.</li></ul>
+      </div>
     </div>
   </section>
 
+  <!-- ===== PULSE STRIP ===== -->
+  <section class="pulse-strip" id="pulseStrip">
+    <div class="pulse-item"><span class="muted">CPU-Last</span><strong id="pulseLoad">–</strong><div class="meter"><div class="meter-fill" id="meterLoad"></div></div></div>
+    <div class="pulse-item"><span class="muted">RAM</span><strong id="pulseMem">–</strong><div class="meter"><div class="meter-fill" id="meterMem"></div></div></div>
+    <div class="pulse-item"><span class="muted">Uptime</span><strong id="pulseUptime">–</strong></div>
+    <div class="pulse-item"><span class="muted">Log-Quelle</span><strong id="pulseSource">–</strong></div>
+    <div class="pulse-item"><span class="muted">Stream</span><strong id="pulseStream">–</strong></div>
+  </section>
+
+  <!-- ===== LIVE SSH ===== -->
+  <section class="live-grid">
+    <div class="panel panel-feed">
+      <div class="panel-head">
+        <h2><span class="dot-live"></span> SSH-Zugriffe in Echtzeit</h2>
+        <div class="panel-tools">
+          <label class="chk"><input type="checkbox" id="filterFailed" checked /> Fehlversuche</label>
+          <label class="chk"><input type="checkbox" id="filterAccepted" checked /> Erfolgreich</label>
+          <label class="chk"><input type="checkbox" id="filterPause" /> Pause</label>
+        </div>
+      </div>
+      <div class="feed-head">
+        <span>Zeit</span><span>Typ</span><span>IP / Herkunft</span><span>Benutzer</span><span>Methode</span><span></span>
+      </div>
+      <div class="feed" id="feed">
+        <div class="feed-empty muted" id="feedEmpty">Warte auf Ereignisse…</div>
+      </div>
+      <div class="feed-foot muted small" id="feedWarning"></div>
+    </div>
+
+    <div class="panel panel-chart">
+      <div class="panel-head">
+        <h2>Login-Versuche · letzte 24 Stunden</h2>
+        <div class="legend">
+          <span class="legend-item"><i class="sw sw-failed"></i>Fehlgeschlagen</span>
+          <span class="legend-item"><i class="sw sw-accepted"></i>Erfolgreich</span>
+        </div>
+      </div>
+      <div class="chart" id="chart">
+        <div class="chart-bars" id="chartBars"></div>
+        <div class="chart-axis" id="chartAxis"></div>
+        <div class="chart-tip hidden" id="chartTip"></div>
+      </div>
+    </div>
+
+    <div class="panel panel-top">
+      <div class="panel-head"><h2>Top-Angreifer</h2><span class="muted small">24h</span></div>
+      <div class="top-list" id="topIps"><div class="muted">–</div></div>
+    </div>
+
+    <div class="panel panel-users">
+      <div class="panel-head"><h2>Meistprobierte Benutzernamen</h2></div>
+      <div class="chip-cloud" id="topUsers"><span class="muted">–</span></div>
+      <div class="panel-head mt"><h2>Aktive Sitzungen</h2></div>
+      <div class="sessions" id="sessions"><span class="muted">–</span></div>
+    </div>
+  </section>
+
+  <!-- ===== GUARD / BLOCKLISTE ===== -->
+  <section class="guard-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>🛡️ Servnix Guard · Blockliste</h2>
+        <span class="muted small">serverweit via nftables</span>
+      </div>
+      <p class="muted small">
+        Regelbasierte Erkennung (keine KI): zählt echte SSH-Fehlversuche und Portscan-Muster aus den
+        Server-Logs und sperrt Angreifer am gesamten Server. Daemon: <code>sudo ./scripts/servnix-guard.sh install</code>
+      </p>
+      <div class="btn-row">
+        <input type="text" id="blockIpInput" placeholder="IP manuell sperren, z. B. 203.0.113.5" />
+        <button id="blockIpBtn" class="btn btn-danger">Sperren</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>IP</th><th>Herkunft</th><th>Grund</th><th>Quelle</th><th>Sync</th><th></th></tr></thead>
+        <tbody id="blocklistBody"><tr><td colspan="6" class="muted">Lade Blockliste…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>📜 Security-Events</h2></div>
+      <ul class="events" id="securityEventsList"><li class="muted">Lade Ereignisse…</li></ul>
+    </div>
+  </section>
+
+  <!-- ===== SCAN-KARTEN ===== -->
+  <h2 class="section-title">Systemprüfung</h2>
   <section class="grid">
-    <div class="card" id="card-firewall">
-      <h2>🧱 Firewall</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-ddos">
-      <h2>🚨 DDoS-Schutz</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-ports">
-      <h2>🌐 Offene Ports</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-ssl">
-      <h2>🔒 TLS/SSL</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-headers">
-      <h2>🛡️ HTTP Security Header</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-webvuln">
-      <h2>🌐 Website-Sicherheit</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-deps">
-      <h2>📦 Dependency-Audit</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
-
-    <div class="card" id="card-system">
-      <h2>🖥️ System</h2>
-      <div class="body"><p class="muted">–</p></div>
-    </div>
+    <div class="card" id="card-firewall"><h2>🧱 Firewall</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-ddos"><h2>🚨 DDoS-Schutz</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-ports"><h2>🌐 Offene Ports</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-ssl"><h2>🔒 TLS/SSL</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-headers"><h2>🛡️ HTTP Security Header</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-webvuln"><h2>🕸️ Website-Sicherheit</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-deps"><h2>📦 Dependency-Audit</h2><div class="body"><p class="muted">–</p></div></div>
+    <div class="card" id="card-system"><h2>🖥️ System</h2><div class="body"><p class="muted">–</p></div></div>
 
     <div class="card" id="card-opnsense">
       <h2>🔗 OPNsense</h2>
@@ -81,14 +192,14 @@
     </div>
 
     <div class="card" id="card-servnix-fw">
-      <h2>⚙️ Servnix-Firewall verwalten</h2>
+      <h2>⚙️ Servnix-Firewall</h2>
       <div class="body">
         <p class="muted">Eigenes nftables-Regelwerk mit Default-Deny, Rate-Limiting und Portscan-Erkennung.</p>
         <div class="btn-row">
-          <button data-fw-action="install">Installieren</button>
-          <button data-fw-action="enable">Aktivieren</button>
-          <button data-fw-action="disable" class="danger">Deaktivieren</button>
-          <button data-fw-action="status">Status</button>
+          <button class="btn" data-fw-action="install">Installieren</button>
+          <button class="btn btn-ok" data-fw-action="enable">Aktivieren</button>
+          <button class="btn btn-danger" data-fw-action="disable">Deaktivieren</button>
+          <button class="btn" data-fw-action="status">Status</button>
         </div>
         <pre id="fwActionOutput" class="output"></pre>
       </div>
@@ -101,41 +212,14 @@
         <div id="hardeningBody"><p class="muted">Lade Status…</p></div>
       </div>
     </div>
-
-    <div class="card" id="card-guard">
-      <h2>🛡️ Servnix Guard · Blockliste</h2>
-      <div class="body">
-        <p class="muted">
-          Regelbasierte Angriffserkennung (keine "KI-Magie"): zaehlt echte SSH-Fehlversuche
-          und Portscan-Muster aus den Server-Logs und sperrt Angreifer-IPs automatisch am
-          gesamten Server (nicht nur im Dashboard). Daemon starten mit
-          <code>sudo ./scripts/servnix-guard.sh install</code>.
-        </p>
-        <div class="btn-row">
-          <input type="text" id="blockIpInput" placeholder="IP manuell sperren, z.B. 203.0.113.5" />
-          <button id="blockIpBtn">🚫 Sperren</button>
-        </div>
-        <table class="data-table">
-          <thead><tr><th>IP</th><th>Grund</th><th>Quelle</th><th>Firewall</th><th></th></tr></thead>
-          <tbody id="blocklistBody"><tr><td colspan="5" class="muted">Lade Blockliste…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card" id="card-security-events">
-      <h2>📜 Security-Events</h2>
-      <div class="body">
-        <p class="muted">Protokoll aller Sperrungen, Entsperrungen und erkannten USB-Geraete.</p>
-        <ul id="securityEventsList"><li class="muted">Lade Ereignisse…</li></ul>
-      </div>
-    </div>
   </section>
 </main>
 
 <footer>
-  Servnix · alle Werte auf dieser Seite stammen aus echten, live ausgeführten Systemchecks – keine Beispieldaten.
+  Servnix · alle Werte auf dieser Seite stammen aus echten, live ausgeführten Systemchecks und Server-Logs – keine Beispieldaten.
 </footer>
 
+<div class="toast-stack" id="toasts"></div>
 <script src="app.js"></script>
 </body>
 </html>
