@@ -13,6 +13,7 @@ const { run } = require('./lib/exec');
 const blocklist = require('./lib/blocklist');
 const { recordFailure, recordSuccess } = require('./lib/bruteforceGuard');
 const { createRateLimiter } = require('./lib/rateLimiter');
+const sshLive = require('./lib/sshLive');
 
 const app = express();
 app.disable('x-powered-by');
@@ -221,6 +222,93 @@ app.get('/api/hardening/status', (req, res) => {
   });
 });
 
+// --- API: SSH-Echtzeit (echte Logs, kein Demo-Material) ---
+
+const SSH_WINDOW_MINUTES = Number(process.env.SSH_LIVE_WINDOW_MINUTES) || 1440;
+
+async function buildSshSnapshot(limit = 300) {
+  const { events, source, warning } = await sshLive.readEvents(SSH_WINDOW_MINUTES, 5000);
+  const stats = sshLive.buildStats(events);
+  const recent = events.slice(0, limit);
+  const geo = await sshLive.geoLookup([...recent.map((e) => e.ip), ...stats.topIps.map((t) => t.ip)]);
+  return { events: recent, stats, geo, source, warning, geoEnabled: sshLive.geoEnabled(), windowMinutes: SSH_WINDOW_MINUTES };
+}
+
+app.get('/api/ssh/events', async (req, res) => {
+  try {
+    res.json(await buildSshSnapshot(Math.min(Number(req.query.limit) || 300, 2000)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ssh/sessions', async (req, res) => {
+  res.json(await sshLive.activeSessions());
+});
+
+app.get('/api/ssh/geo', async (req, res) => {
+  const ips = String(req.query.ips || '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 100);
+  res.json(await sshLive.geoLookup(ips));
+});
+
+/**
+ * Server-Sent-Events: pusht alle paar Sekunden neue SSH-Ereignisse, die
+ * Blockliste, Security-Events, aktive Sitzungen und einen System-Puls.
+ * Der Browser haelt eine einzige Verbindung offen - kein Polling-Gewitter.
+ */
+app.get('/api/live', async (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  let lastTs = 0;
+  let lastEventCount = -1;
+  let lastBlockKey = '';
+  let closed = false;
+  req.on('close', () => {
+    closed = true;
+    clearInterval(timer);
+  });
+
+  const tick = async (initial) => {
+    if (closed) return;
+    try {
+      const { events, source, warning } = await sshLive.readEvents(initial ? SSH_WINDOW_MINUTES : 15, initial ? 5000 : 500);
+      const fresh = initial ? events : events.filter((e) => e.ts > lastTs);
+      if (events.length) lastTs = Math.max(lastTs, events[0].ts);
+      if (fresh.length) {
+        const geo = await sshLive.geoLookup(fresh.map((e) => e.ip));
+        send('ssh', { events: fresh.slice(0, initial ? 300 : 100), geo, source, warning, initial });
+      }
+      if (initial || fresh.length) {
+        const all = initial ? events : (await sshLive.readEvents(SSH_WINDOW_MINUTES, 5000)).events;
+        send('stats', sshLive.buildStats(all));
+      }
+
+      const blocked = blocklist.listBlocked();
+      const blockKey = Object.keys(blocked).sort().join(',');
+      const evs = blocklist.listEvents(50);
+      if (blockKey !== lastBlockKey || evs.length !== lastEventCount) {
+        lastBlockKey = blockKey;
+        lastEventCount = evs.length;
+        send('blocklist', { blocked, events: evs });
+      }
+
+      send('pulse', { ...sshLive.pulse(), sessions: await sshLive.activeSessions(), ts: Date.now() });
+    } catch (err) {
+      send('error', { message: err.message });
+    }
+  };
+
+  await tick(true);
+  const timer = setInterval(() => tick(false), Number(process.env.SSH_LIVE_INTERVAL_SECONDS) * 1000 || 4000);
+});
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`Servnix Dashboard laeuft auf http://${HOST}:${PORT}`);
   if (HOST === '127.0.0.1' || HOST === 'localhost') {
@@ -237,4 +325,3 @@ const server = app.listen(PORT, HOST, () => {
 server.headersTimeout = 15000; // Zeit fuer vollstaendige Header
 server.requestTimeout = 30000; // Zeit fuer die gesamte Anfrage
 server.keepAliveTimeout = 5000; // wie lange Keep-Alive-Verbindungen offen bleiben
-
